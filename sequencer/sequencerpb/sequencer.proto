@@ -1,0 +1,16 @@
+syntax = "proto3";
+package sequencer;
+
+option go_package = "github.com/nathanieltornow/PMLog/sequencer/sequencerpb";
+
+
+service Sequencer {
+  rpc Heartbeat(stream NodeInfo) returns (OK);
+}
+
+message NodeInfo {
+  repeated string Adopters = 1;
+}
+
+message OK {}
+
