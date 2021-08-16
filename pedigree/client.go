@@ -5,33 +5,30 @@ import (
 	"fmt"
 	pb "github.com/nathanieltornow/PMLog/pedigree/pedigreepb"
 	"github.com/sirupsen/logrus"
+	"google.golang.org/grpc"
 	"sync"
 	"time"
 )
 
 type Client struct {
-	sync.Mutex
-
-	parentInfo *pb.NodeInfo
-	parentConn *nodeConnection
-
-	adopters []*pb.NodeInfo
+	mu        sync.Mutex
+	adopters  []*pb.NodeInfo
+	clientApp ClientApp
 }
 
-func NewClient(adopters []*pb.NodeInfo) (*Client, error) {
+type ClientApp interface {
+	UpdateParentConnection(conn *grpc.ClientConn)
+}
+
+func NewClient(adopters []*pb.NodeInfo, clientApp ClientApp) (*Client, error) {
 	if len(adopters) == 0 {
-		return nil, fmt.Errorf("no adopters")
+		return nil, fmt.Errorf("failed to create new client: no adopters")
 	}
 	client := new(Client)
 	client.adopters = adopters
+	client.clientApp = clientApp
 	client.adopt()
 	return client, nil
-}
-
-func (c *Client) GetParentAppIP() string {
-	c.Lock()
-	defer c.Unlock()
-	return c.parentInfo.IP + ":" + c.parentInfo.AppPort
 }
 
 func (c *Client) receiveHeartbeat(stream pb.Node_HeartbeatClient) {
@@ -52,9 +49,9 @@ func (c *Client) receiveHeartbeat(stream pb.Node_HeartbeatClient) {
 			if err != nil {
 				return
 			}
-			c.Lock()
+			c.mu.Lock()
 			c.adopters = in.Peers
-			c.Unlock()
+			c.mu.Unlock()
 		case <-time.After(2 * heartBeatInterval):
 			return
 		}
@@ -67,20 +64,20 @@ func (c *Client) adopt() {
 		logrus.Fatalf("no adopters")
 	}
 	for _, v := range c.adopters {
-		nodeConn, err := newNodeConnection(v)
+		conn, err := newConnection(v.IP)
 		if err != nil {
 			continue
 		}
-		c.Lock()
-		c.parentInfo = v
-		c.parentConn = nodeConn
-		c.Unlock()
-		stream, err := c.parentConn.client.Heartbeat(context.Background(), &pb.Empty{})
+
+		client := pb.NewNodeClient(conn)
+		stream, err := client.Heartbeat(context.Background(), &pb.Empty{})
 		if err != nil {
 			logrus.Errorf("failed to start heartbeat: %v", err)
 			continue
 		}
-		logrus.Infoln("Adopted by:", c.parentInfo)
+
+		logrus.Infoln("Adopted by:", v)
+		c.clientApp.UpdateParentConnection(conn)
 		go c.receiveHeartbeat(stream)
 		return
 	}

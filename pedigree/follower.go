@@ -41,42 +41,36 @@ func (n *Node) selectNewLeader() {
 		logrus.Fatalf("no peers")
 	}
 	for _, v := range n.peers {
-		if v.IP == n.nodeInfo.IP && v.Port == n.nodeInfo.Port {
+		if v.IP == n.nodeInfo.IP {
 			n.Lock()
 			n.isLeader = true
-			client, err := NewClient(n.adopters)
+			client, err := NewClient(n.adopters, n)
 			if err == nil {
 				n.client = client
 			}
 			n.peers = make([]*pb.NodeInfo, 0)
 			n.adopters = make([]*pb.NodeInfo, 0)
-			n.leaderConn = nil
-			n.leaderInfo = nil
-			n.nodeIDCtr = n.epoch + 1
+			n.nodeIDCtr = n.nodeInfo.ID + 1
 			n.Unlock()
 			logrus.Infoln("Leader now")
 			return
 		}
 
-		n.Lock()
-		n.leaderInfo = v
-		n.Unlock()
-		err := n.connectToLeader()
+		err := n.connectToLeader(v.IP)
 		if err != nil {
 			continue
 		}
-		logrus.Infoln("Connected to leader:", n.leaderConn.nodeInfo)
 		return
 	}
 	logrus.Fatalln("failed to connect to any of the peers")
 }
 
-func (n *Node) connectToLeader() error {
-	nodeConn, err := newNodeConnection(n.leaderInfo)
+func (n *Node) connectToLeader(ip string) error {
+	nodeConn, err := newConnection(ip)
 	if err != nil {
 		return err
 	}
-	client := pb.NewNodeClient(nodeConn.conn)
+	client := pb.NewNodeClient(nodeConn)
 	resp, err := client.Register(context.Background(), n.nodeInfo)
 	if err != nil {
 		return fmt.Errorf("failed to register at the leader: %v", err)
@@ -84,13 +78,12 @@ func (n *Node) connectToLeader() error {
 
 	// if registered successfully, change variables
 	n.Lock()
-	n.epoch = resp.NodeID
+	n.nodeInfo.ID = resp.NodeID
 	n.peers = resp.Structure.Peers
 	n.adopters = resp.Structure.Adopters
-	n.leaderConn = nodeConn
 	n.Unlock()
 
-	stream, err := nodeConn.client.Heartbeat(context.Background(), &pb.Empty{})
+	stream, err := client.Heartbeat(context.Background(), &pb.Empty{})
 	if err != nil {
 		return err
 	}

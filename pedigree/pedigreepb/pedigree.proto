@@ -22,8 +22,6 @@ message StructureUpdate {
 message NodeInfo {
   uint32 ID = 1;
   string IP = 2;
-  string port = 3;
-  string appPort = 4;
 }
 
 message Empty{}

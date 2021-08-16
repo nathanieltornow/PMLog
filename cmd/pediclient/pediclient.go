@@ -2,9 +2,8 @@ package main
 
 import (
 	"flag"
-	"github.com/nathanieltornow/PMLog/pedigree"
-	pb "github.com/nathanieltornow/PMLog/pedigree/pedigreepb"
-	"log"
+	"fmt"
+	"net"
 	"strings"
 )
 
@@ -13,18 +12,25 @@ var (
 )
 
 func main() {
-	flag.Parse()
-	waitC := make(chan bool)
-	if *parentIP != "" {
-		parentNodeIP, parentNodePort := getIPandPort(*parentIP)
-		parentNodeInfo := pb.NodeInfo{IP: parentNodeIP, Port: parentNodePort}
-		_, err := pedigree.NewClient([]*pb.NodeInfo{&parentNodeInfo})
-		if err != nil {
-			log.Fatalln(err)
-		}
+	//flag.Parse()
+	//waitC := make(chan bool)
+	//if *parentIP != "" {
+	//	parentNodeIP, parentNodePort := getIPandPort(*parentIP)
+	//	parentNodeInfo := pb.NodeInfo{IP: parentNodeIP, Port: parentNodePort}
+	//	_, err := pedigree.NewClient([]*pb.NodeInfo{&parentNodeInfo})
+	//	if err != nil {
+	//		log.Fatalln(err)
+	//	}
+	//}
+	//<-waitC
+	lis, err := net.Listen("tcp", "localhost:9000")
+	if err != nil {
+		fmt.Println(lis, err)
 	}
-	<-waitC
-
+	lis, err = net.Listen("tcp", "localhost:9000")
+	if err != nil {
+		fmt.Println(lis, err)
+	}
 }
 
 func getIPandPort(ipAddr string) (string, string) {
