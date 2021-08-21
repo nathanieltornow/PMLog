@@ -3,37 +3,37 @@ package main
 import (
 	"flag"
 	"fmt"
-	"net"
-	"strings"
+	"time"
 )
 
 var (
 	parentIP = flag.String("parIP", "", "")
 )
 
-func main() {
-	//flag.Parse()
-	//waitC := make(chan bool)
-	//if *parentIP != "" {
-	//	parentNodeIP, parentNodePort := getIPandPort(*parentIP)
-	//	parentNodeInfo := pb.NodeInfo{IP: parentNodeIP, Port: parentNodePort}
-	//	_, err := pedigree.NewClient([]*pb.NodeInfo{&parentNodeInfo})
-	//	if err != nil {
-	//		log.Fatalln(err)
-	//	}
-	//}
-	//<-waitC
-	lis, err := net.Listen("tcp", "localhost:9000")
-	if err != nil {
-		fmt.Println(lis, err)
-	}
-	lis, err = net.Listen("tcp", "localhost:9000")
-	if err != nil {
-		fmt.Println(lis, err)
+func stuff(m map[uint64]chan bool) {
+	for i := 0; i < 1000; i++ {
+		m[1] <- true
 	}
 }
 
-func getIPandPort(ipAddr string) (string, string) {
-	splits := strings.Split(ipAddr, ":")
-	return splits[0], splits[1]
+func ok(ch chan bool) {
+	for {
+		time.Sleep(time.Second)
+		ch <- true
+	}
+}
+
+func main() {
+	ticker := time.Tick(2 * time.Second)
+	ch := make(chan bool, 10)
+	go ok(ch)
+	for {
+		select {
+		case <-ticker:
+			fmt.Println("hi")
+		case <-ch:
+			fmt.Println("hoo")
+		}
+
+	}
 }
