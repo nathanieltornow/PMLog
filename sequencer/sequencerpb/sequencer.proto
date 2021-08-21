@@ -4,18 +4,14 @@ package sequencer;
 option go_package = "github.com/nathanieltornow/PMLog/sequencer/sequencerpb";
 
 service Sequencer {
-  rpc GetOrder(stream OrderRequest) returns (stream Response);
-}
-
-message Response {
-  OrderResponse ORsp = 1;
-  Structure Struct = 2;
+  rpc GetOrder(stream OrderRequest) returns (stream OrderResponse);
 }
 
 message OrderRequest {
   uint64 Lsn = 1;
   uint32 NumOfRecords = 2;
   uint32 Color = 3;
+  uint32 OriginColor = 4;
 }
 
 message OrderResponse {
@@ -23,15 +19,5 @@ message OrderResponse {
   uint64 Gsn = 2;
   uint32 NumOfRecords = 3;
   uint32 Color = 4;
-}
-
-message NodeInfo {
-  uint32 ID = 1;
-  string IP = 2;
-}
-
-message Structure {
-  uint32 epoch = 1;
-  repeated NodeInfo Peers = 2;
-  repeated NodeInfo Adopters = 3;
+  uint32 OriginColor = 5;
 }

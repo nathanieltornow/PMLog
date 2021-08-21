@@ -2,27 +2,69 @@ package sequencer
 
 import (
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
-	"time"
+	"github.com/sirupsen/logrus"
 )
 
-func (s *Sequencer) receiveOrderResponses() {
-
-}
-
-func (s *Sequencer) handleOrderRequests(oReqC chan *pb.OrderRequest) {
-	s.stateMu.Lock()
+func (s *Sequencer) handleOrderResponses() {
 	justFwd := !s.leader
-	justReply := s.root && s.leader
-	s.stateMu.Unlock()
+
+	defer logrus.Infoln("Returning from handleOrderResponses")
 
 	if justFwd {
-		go forwardOrderRequests(s.upstream, oReqC)
+		for oRsp := range s.oRspCIn {
+			s.broadcastOrderResponse(oRsp)
+		}
 		return
 	}
+
+	color := s.color
+	for oRsp := range s.oRspCIn {
+		if oRsp.OriginColor == color {
+			i := uint32(0)
+			for i < oRsp.NumOfRecords {
+				// get orderRequests from cache
+				s.oReqCacheMu.Lock()
+				oReq, ok := s.oReqCache[oRsp.Lsn]
+				s.oReqCacheMu.Unlock()
+				if !ok {
+					logrus.Fatalln("failed to get cached OrderRequest")
+				}
+
+				newORsp := &pb.OrderResponse{
+					Lsn:          oReq.Lsn,
+					NumOfRecords: oReq.NumOfRecords,
+					Gsn:          oRsp.Gsn,
+					OriginColor:  oReq.OriginColor,
+					Color:        oRsp.Color,
+				}
+				s.broadcastOrderResponse(newORsp)
+
+				i += oReq.NumOfRecords
+			}
+
+			continue
+		}
+		s.broadcastOrderResponse(oRsp)
+	}
+}
+
+func (s *Sequencer) handleOrderRequests() {
+	justFwd := !s.leader
+	justReply := s.root && s.leader
+
+	defer logrus.Infoln("Returning from handleOrderRequests")
+
 	if justReply {
-		for oReq := range oReqC {
+		// in case the sequencer is the root, it will just immediately return with an OrderResponse
+		for oReq := range s.oReqCIn {
 			sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
-			oRsp := &pb.OrderResponse{Color: oReq.Color, NumOfRecords: oReq.NumOfRecords, Lsn: oReq.Lsn, Gsn: sn}
+			oRsp := &pb.OrderResponse{
+				Lsn:          oReq.Lsn,
+				Gsn:          sn,
+				NumOfRecords: oReq.NumOfRecords,
+				Color:        oReq.Color,
+				OriginColor:  oReq.OriginColor,
+			}
 			s.broadcastOrderResponse(oRsp)
 		}
 		return
@@ -31,76 +73,63 @@ func (s *Sequencer) handleOrderRequests(oReqC chan *pb.OrderRequest) {
 	color := s.color
 
 	batchedOReqC := make(chan *pb.OrderRequest, 256)
-	go forwardOrderRequests(s.upstream, batchedOReqC)
+	go s.forwardOrderRequests(batchedOReqC)
+	defer close(batchedOReqC)
 
-	var newOReq *pb.OrderRequest
-	for {
-		select {
-		case <-time.Tick(batchingInterval):
-			if newOReq != nil {
-				batchedOReqC <- newOReq
-				newOReq = nil
-			}
-		case oReq := <-oReqC:
-			sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
-			if oReq.Color == color {
-				oRsp := &pb.OrderResponse{Color: oReq.Color, NumOfRecords: oReq.NumOfRecords, Lsn: oReq.Lsn, Gsn: sn}
-				s.broadcastOrderResponse(oRsp)
-				continue
-			}
-
-			// cache orderRequest
-			s.oReqCacheMu.Lock()
-			s.oReqCache[sn] = oReq
-			s.oReqCacheMu.Unlock()
-
-			if newOReq == nil {
-				newOReq = &pb.OrderRequest{Lsn: sn, Color: color, NumOfRecords: oReq.NumOfRecords}
-				continue
-			}
-			newOReq.NumOfRecords += oReq.NumOfRecords
-		}
+	if justFwd {
+		s.forwardOrderRequests(s.oReqCIn)
+		return
 	}
 
+	for oReq := range s.oReqCIn {
+		sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
+		oRsp := &pb.OrderResponse{
+			Lsn:          oReq.Lsn,
+			Gsn:          sn,
+			NumOfRecords: oReq.NumOfRecords,
+			Color:        color,
+			OriginColor:  oReq.OriginColor,
+		}
+		s.broadcastOrderResponse(oRsp)
+
+		if color == oReq.Color {
+			continue
+		}
+
+		// cache orderRequest
+		s.oReqCacheMu.Lock()
+		s.oReqCache[sn] = oReq
+		s.oReqCacheMu.Unlock()
+
+		batchedOReqC <- oReq
+	}
 }
 
-func forwardOrderRequests(stream pb.Sequencer_GetOrderClient, oReqC chan *pb.OrderRequest) {
+func (s *Sequencer) broadcastOrderResponse(oRsp *pb.OrderResponse) {
+	s.oRspCsMu.RLock()
+	for _, oRspC := range s.oRspCs {
+		oRspC <- oRsp
+	}
+	s.oRspCsMu.RUnlock()
+}
+
+func (s *Sequencer) forwardOrderRequests(oReqC chan *pb.OrderRequest) {
+	defer logrus.Infoln("Returning from forwardOrderRequests")
 	for oReq := range oReqC {
-		err := stream.Send(oReq)
+		err := s.upstream.Send(oReq)
 		if err != nil {
 			return
 		}
 	}
 }
 
-func (s *Sequencer) broadcastOrderResponse(oRsp *pb.OrderResponse) {
-	s.oRspCsMu.Lock()
-	for _, oRspC := range s.oRspCs {
-		oRspC <- oRsp
-	}
-	s.oRspCsMu.Unlock()
-}
+func (s *Sequencer) forwardOrderResponses(stream pb.Sequencer_GetOrderServer, oRspC chan *pb.OrderResponse) {
+	defer logrus.Infoln("Returning from OrderResponses")
 
-func (s *Sequencer) forwardResponses(stream pb.Sequencer_GetOrderServer, oRspC chan *pb.OrderResponse) {
-	for {
-		s.structMu.Lock()
-		resp := &pb.Response{Struct: &pb.Structure{Peers: s.peers, Adopters: s.adopters}}
-		s.structMu.Unlock()
-		select {
-		case oReq, ok := <-oRspC:
-			if !ok {
-				return
-			}
-			resp.ORsp = oReq
-			err := stream.Send(resp)
-			if err != nil {
-				return
-			}
-		case <-time.After(heartBeatInterval):
-			err := stream.Send(resp)
-			if err != nil {
-				return
-			}
+	for oRsp := range oRspC {
+		err := stream.Send(oRsp)
+		if err != nil {
+			return
 		}
 	}
 }
