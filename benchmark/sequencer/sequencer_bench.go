@@ -109,7 +109,6 @@ func benchmarkSequencer(IP string, color, originColor uint32, runtime, interval 
 func getOverallLatency(in, out map[uint64]time.Time) time.Duration {
 	numOfRes := 0
 	var latencySum time.Duration
-	fmt.Println(len(in), len(out))
 	for outLsn, outTime := range out {
 		inTime, ok := in[outLsn]
 		if !ok {
