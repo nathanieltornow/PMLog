@@ -7,11 +7,11 @@ import (
 )
 
 var (
-	IP     = flag.String("IP", "", "")
-	parIP  = flag.String("parIP", "", "")
-	root   = flag.Bool("root", false, "")
-	leader = flag.Bool("leader", false, "")
-	color  = flag.Int("color", 0, "")
+	IP     = flag.String("IP", "", "The IP on which the sequencer listens")
+	parIP  = flag.String("parIP", "", "The IP of the parent-sequencer")
+	root   = flag.Bool("root", false, "If the sequencer is the root-sequencer")
+	leader = flag.Bool("leader", false, "If the sequencer is a leader and can therefore reply to requests")
+	color  = flag.Int("color", 0, "The color which the sequencer represents")
 )
 
 func main() {
