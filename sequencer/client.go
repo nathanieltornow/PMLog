@@ -12,7 +12,11 @@ type Client struct {
 	oReqC  chan *pb.OrderRequest
 }
 
-func NewClient(conn *grpc.ClientConn) (*Client, error) {
+func NewClient(IP string) (*Client, error) {
+	conn, err := grpc.Dial(IP, grpc.WithInsecure())
+	if err != nil {
+		return nil, err
+	}
 	pbClient := pb.NewSequencerClient(conn)
 	stream, err := pbClient.GetOrder(context.Background())
 	if err != nil {
@@ -33,6 +37,16 @@ func (c *Client) MakeOrderRequests() chan<- *pb.OrderRequest {
 
 func (c *Client) GetOrderResponses() <-chan *pb.OrderResponse {
 	return c.oRspC
+}
+
+func (c *Client) Stop() error {
+	err := c.stream.CloseSend()
+	if err != nil {
+		return err
+	}
+	close(c.oRspC)
+	close(c.oReqC)
+	return nil
 }
 
 func (c *Client) sendOReqs() {

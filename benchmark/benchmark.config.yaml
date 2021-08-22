@@ -1,0 +1,5 @@
+endpoint: ":8000"
+threads: 1
+ops: 10 # operations per second for each client
+runtime: 10s # overall runtime
+color: 1
