@@ -16,16 +16,19 @@ import (
 
 var (
 	endpointList []string
+	color        uint32
 )
 
 func TestMain(m *testing.M) {
 	endpoints := flag.String("endpoints", "", "")
+	colorFlag := flag.Int("color", 0, "")
 	flag.Parse()
 	if *endpoints == "" {
 		logrus.Fatalln("no endpoints given")
 	}
 	split := strings.Split(*endpoints, ",")
 	endpointList = split
+	color = uint32(*colorFlag)
 	ret := m.Run()
 	os.Exit(ret)
 }
@@ -34,7 +37,6 @@ func TestSerial(t *testing.T) {
 	stream, err := getClientStream(endpointList[0])
 	require.NoError(t, err)
 	waitC := make(chan bool)
-	fmt.Println("hi")
 	go func() {
 		for {
 			oRsp, err := stream.Recv()
@@ -47,7 +49,7 @@ func TestSerial(t *testing.T) {
 	}()
 	for i := uint64(0); i < 10; i++ {
 		time.Sleep(time.Second)
-		err := stream.Send(&pb.OrderRequest{Lsn: i, NumOfRecords: 1, Color: 3, OriginColor: 4})
+		err := stream.Send(&pb.OrderRequest{Lsn: i, NumOfRecords: 1, Color: color, OriginColor: 4000})
 		require.NoError(t, err)
 	}
 	time.Sleep(time.Second)
@@ -55,6 +57,16 @@ func TestSerial(t *testing.T) {
 	require.NoError(t, err)
 	<-waitC
 }
+
+//func checkOReqORsp(t *testing.T, oReqC chan *pb.OrderRequest, oRspC chan *pb.OrderResponse) {
+//	type OReqORspPair struct {
+//		oReq *pb.OrderRequest
+//		oRsp *pb.OrderResponse
+//	}
+//	lsnToPair := make(map[uint64]*OReqORspPair)
+//
+//
+//}
 
 func getClientStream(IP string) (pb.Sequencer_GetOrderClient, error) {
 	conn, err := grpc.Dial(IP, grpc.WithInsecure())
