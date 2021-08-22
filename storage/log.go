@@ -1,7 +1,7 @@
 package storage
 
 type Log interface {
-	Append(record string) (lsn uint64, err error)
+	Append(color uint32, record string) (lsn uint64, err error)
 
 	Commit(color uint32, lsn uint64, gsn uint64) (err error)
 

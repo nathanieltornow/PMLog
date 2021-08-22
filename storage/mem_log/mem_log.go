@@ -3,8 +3,7 @@ package mem_log
 type MemLog struct {
 }
 
-func (log *MemLog) Append(record string) (uint64, error) {
-
+func (log *MemLog) Append(color uint32, record string) (uint64, error) {
 	return 0, nil
 }
 
