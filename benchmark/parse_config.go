@@ -11,7 +11,6 @@ type BenchConfig struct {
 	Threads  int           `yaml:"threads"`
 	Runtime  time.Duration `yaml:"runtime"`
 	Endpoint string        `yaml:"endpoint"`
-	Color    int           `yaml:"color"`
 }
 
 func GetBenchConfig(configFile string) (*BenchConfig, error) {

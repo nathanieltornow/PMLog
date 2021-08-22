@@ -1,5 +1,4 @@
-endpoint: ":8000"
-threads: 1
-ops: 10 # operations per second for each client
+endpoint: ":8000" # the IP of the sequencer
+threads: 1 # number of threads that generate requests
+ops: 10 # operations per second for each thread
 runtime: 10s # overall runtime
-color: 1

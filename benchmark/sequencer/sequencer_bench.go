@@ -12,6 +12,7 @@ import (
 
 var (
 	configFile = flag.String("config", "", "")
+	colorFlag  = flag.Int("color", 0, "")
 
 	startTime = time.Now() //.Truncate(time.Minute).Add(time.Minute)
 	resultC   chan *benchmarkResult
@@ -26,7 +27,7 @@ func main() {
 	resultC = make(chan *benchmarkResult, config.Threads)
 	interval := time.Duration(time.Second.Nanoseconds() / int64(config.Ops))
 	for i := 0; i < config.Threads; i++ {
-		go benchmarkSequencer(config.Endpoint, uint32(config.Color), uint32(i), config.Runtime, interval)
+		go benchmarkSequencer(config.Endpoint, uint32(*colorFlag), uint32(i), config.Runtime, interval)
 	}
 	overallThroughput := 0
 	latencySum := time.Duration(0)
@@ -59,7 +60,6 @@ func benchmarkSequencer(IP string, color, originColor uint32, runtime, interval 
 	outTimes := make(map[uint64]time.Time)
 
 	go func() {
-		<-time.After(time.Until(startTime))
 		for {
 			rsp, ok := <-oRspC
 			now := time.Now()
