@@ -3,6 +3,10 @@ package mem_log
 type MemLog struct {
 }
 
+func NewMemLog() (*MemLog, error) {
+	return &MemLog{}, nil
+}
+
 func (log *MemLog) Append(color uint32, record string) (uint64, error) {
 	return 0, nil
 }
