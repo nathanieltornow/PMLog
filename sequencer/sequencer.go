@@ -76,6 +76,15 @@ func (s *Sequencer) startGRPCServer(IP string) error {
 
 	go s.handleOrderRequests()
 
+	go func() {
+		for {
+			<-time.After(10 * time.Second)
+			s.snMu.Lock()
+			logrus.Infoln("Sn:", s.sn)
+			s.snMu.Unlock()
+		}
+	}()
+
 	logrus.Infoln("starting sequencer on ", IP)
 	if err := server.Serve(lis); err != nil {
 		return fmt.Errorf("failed to start sequencer: %v", err)
