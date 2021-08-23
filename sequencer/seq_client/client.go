@@ -1,4 +1,4 @@
-package client
+package seq_client
 
 import (
 	"context"

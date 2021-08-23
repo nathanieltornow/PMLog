@@ -7,7 +7,6 @@ import (
 
 func (s *Sequencer) handleOrderResponses() {
 	justFwd := !s.leader
-	defer logrus.Infoln("Returning from handleOrderResponses")
 
 	oRspC := s.parentClient.GetOrderResponses()
 
@@ -52,8 +51,6 @@ func (s *Sequencer) handleOrderResponses() {
 func (s *Sequencer) handleOrderRequests() {
 	justFwd := !s.leader
 	justReply := s.root && s.leader
-
-	defer logrus.Infoln("Returning from handleOrderRequests")
 
 	if justReply {
 		// in case the sequencer is the root, it will just immediately return with an OrderResponse
@@ -115,8 +112,6 @@ func (s *Sequencer) broadcastOrderResponse(oRsp *pb.OrderResponse) {
 }
 
 func (s *Sequencer) forwardOrderResponses(stream pb.Sequencer_GetOrderServer, oRspC chan *pb.OrderResponse) {
-	defer logrus.Infoln("Returning from OrderResponses")
-
 	for oRsp := range oRspC {
 		err := stream.Send(oRsp)
 		if err != nil {

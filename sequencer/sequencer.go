@@ -2,7 +2,7 @@ package sequencer
 
 import (
 	"fmt"
-	seqclient "github.com/nathanieltornow/PMLog/sequencer/client"
+	seqclient "github.com/nathanieltornow/PMLog/sequencer/seq_client"
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"

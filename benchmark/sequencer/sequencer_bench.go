@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/nathanieltornow/PMLog/benchmark"
-	client2 "github.com/nathanieltornow/PMLog/sequencer/client"
+	seqclient "github.com/nathanieltornow/PMLog/sequencer/seq_client"
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -47,7 +47,7 @@ type benchmarkResult struct {
 }
 
 func benchmarkSequencer(IP string, color, originColor uint32, runtime, interval time.Duration) {
-	client, err := client2.NewClient(IP)
+	client, err := seqclient.NewClient(IP)
 	if err != nil {
 		logrus.Fatalln("failed to start client for sequencer")
 	}
