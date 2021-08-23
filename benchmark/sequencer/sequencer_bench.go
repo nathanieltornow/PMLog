@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/nathanieltornow/PMLog/benchmark"
-	"github.com/nathanieltornow/PMLog/sequencer"
+	client2 "github.com/nathanieltornow/PMLog/sequencer/client"
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"time"
@@ -38,7 +38,7 @@ func main() {
 	}
 	ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(config.Threads))
 	throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
-	fmt.Printf("Latency: %v\nThroughput: %v\n", ovrLatency, throughputPerSecond)
+	fmt.Printf("Latency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
 }
 
 type benchmarkResult struct {
@@ -47,7 +47,7 @@ type benchmarkResult struct {
 }
 
 func benchmarkSequencer(IP string, color, originColor uint32, runtime, interval time.Duration) {
-	client, err := sequencer.NewClient(IP)
+	client, err := client2.NewClient(IP)
 	if err != nil {
 		logrus.Fatalln("failed to start client for sequencer")
 	}

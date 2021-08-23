@@ -2,7 +2,6 @@ START_SEQUENCER = ./cmd/start_sequencer/start_sequencer.go
 SEQUENCER_BIN = ./seq
 
 seq:
-	echo Hi
 	go build -o $(SEQUENCER_BIN) $(START_SEQUENCER)
 
 clean:

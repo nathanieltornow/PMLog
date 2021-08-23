@@ -1,8 +1,8 @@
 package sequencer
 
 import (
-	"context"
 	"fmt"
+	seqclient "github.com/nathanieltornow/PMLog/sequencer/client"
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -28,7 +28,7 @@ type Sequencer struct {
 	sn   uint32
 	snMu sync.Mutex
 
-	upstream pb.Sequencer_GetOrderClient
+	parentClient *seqclient.Client
 
 	oReqCache   map[uint64]*pb.OrderRequest
 	oReqCacheMu sync.Mutex
@@ -38,7 +38,6 @@ type Sequencer struct {
 	oRspCsMu sync.RWMutex
 
 	oReqCIn chan *pb.OrderRequest
-	oRspCIn chan *pb.OrderResponse
 }
 
 func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
@@ -49,7 +48,6 @@ func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
 	s.oReqCache = make(map[uint64]*pb.OrderRequest)
 	s.oRspCs = make(map[uint32]chan *pb.OrderResponse)
 	s.oReqCIn = make(chan *pb.OrderRequest, 256)
-	s.oRspCIn = make(chan *pb.OrderResponse, 256)
 	return s
 }
 
@@ -58,18 +56,13 @@ func (s *Sequencer) Start(IP string, parentIP string) error {
 		return s.startGRPCServer(IP)
 	}
 
-	conn, err := grpc.Dial(parentIP, grpc.WithInsecure())
+	client, err := seqclient.NewClient(parentIP)
 	if err != nil {
-		return fmt.Errorf("failed to build connection to parent: %v", err)
+		return fmt.Errorf("failed to connect to parent: %v", err)
 	}
-	client := pb.NewSequencerClient(conn)
+	s.parentClient = client
+	go s.handleOrderResponses()
 
-	stream, err := client.GetOrder(context.Background())
-	if err != nil {
-		return fmt.Errorf("failed to build a stream to the parent: %v", err)
-	}
-	s.upstream = stream
-	go s.receiveOrderResponses()
 	return s.startGRPCServer(IP)
 }
 
@@ -110,17 +103,6 @@ func (s *Sequencer) GetOrder(stream pb.Sequencer_GetOrderServer) error {
 			return err
 		}
 		s.oReqCIn <- oReq
-	}
-}
-
-func (s *Sequencer) receiveOrderResponses() {
-	go s.handleOrderResponses()
-	for {
-		rsp, err := s.upstream.Recv()
-		if err != nil {
-			return
-		}
-		s.oRspCIn <- rsp
 	}
 }
 

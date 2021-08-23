@@ -7,18 +7,19 @@ import (
 
 func (s *Sequencer) handleOrderResponses() {
 	justFwd := !s.leader
-
 	defer logrus.Infoln("Returning from handleOrderResponses")
 
+	oRspC := s.parentClient.GetOrderResponses()
+
 	if justFwd {
-		for oRsp := range s.oRspCIn {
-			s.broadcastOrderResponse(oRsp)
+		for oRsp := range oRspC {
+			go s.broadcastOrderResponse(oRsp)
 		}
 		return
 	}
 
 	color := s.color
-	for oRsp := range s.oRspCIn {
+	for oRsp := range oRspC {
 		if oRsp.OriginColor == color {
 			i := uint32(0)
 			for i < oRsp.NumOfRecords {
@@ -37,7 +38,7 @@ func (s *Sequencer) handleOrderResponses() {
 					OriginColor:  oReq.OriginColor,
 					Color:        oRsp.Color,
 				}
-				s.broadcastOrderResponse(newORsp)
+				go s.broadcastOrderResponse(newORsp)
 
 				i += oReq.NumOfRecords
 			}
@@ -72,12 +73,12 @@ func (s *Sequencer) handleOrderRequests() {
 
 	color := s.color
 
-	batchedOReqC := make(chan *pb.OrderRequest, 256)
-	go s.forwardOrderRequests(batchedOReqC)
-	defer close(batchedOReqC)
+	oReqC := s.parentClient.MakeOrderRequests()
 
 	if justFwd {
-		s.forwardOrderRequests(s.oReqCIn)
+		for oReq := range s.oReqCIn {
+			oReqC <- oReq
+		}
 		return
 	}
 
@@ -92,7 +93,7 @@ func (s *Sequencer) handleOrderRequests() {
 				Color:        color,
 				OriginColor:  oReq.OriginColor,
 			}
-			s.broadcastOrderResponse(oRsp)
+			go s.broadcastOrderResponse(oRsp)
 			continue
 		}
 
@@ -101,7 +102,7 @@ func (s *Sequencer) handleOrderRequests() {
 		s.oReqCache[sn] = oReq
 		s.oReqCacheMu.Unlock()
 
-		batchedOReqC <- oReq
+		oReqC <- oReq
 	}
 }
 
@@ -111,16 +112,6 @@ func (s *Sequencer) broadcastOrderResponse(oRsp *pb.OrderResponse) {
 		oRspC <- oRsp
 	}
 	s.oRspCsMu.RUnlock()
-}
-
-func (s *Sequencer) forwardOrderRequests(oReqC chan *pb.OrderRequest) {
-	defer logrus.Infoln("Returning from forwardOrderRequests")
-	for oReq := range oReqC {
-		err := s.upstream.Send(oReq)
-		if err != nil {
-			return
-		}
-	}
 }
 
 func (s *Sequencer) forwardOrderResponses(stream pb.Sequencer_GetOrderServer, oRspC chan *pb.OrderResponse) {
