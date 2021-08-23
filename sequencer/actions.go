@@ -83,16 +83,16 @@ func (s *Sequencer) handleOrderRequests() {
 
 	for oReq := range s.oReqCIn {
 		sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
-		oRsp := &pb.OrderResponse{
-			Lsn:          oReq.Lsn,
-			Gsn:          sn,
-			NumOfRecords: oReq.NumOfRecords,
-			Color:        color,
-			OriginColor:  oReq.OriginColor,
-		}
-		s.broadcastOrderResponse(oRsp)
 
 		if color == oReq.Color {
+			oRsp := &pb.OrderResponse{
+				Lsn:          oReq.Lsn,
+				Gsn:          sn,
+				NumOfRecords: oReq.NumOfRecords,
+				Color:        color,
+				OriginColor:  oReq.OriginColor,
+			}
+			s.broadcastOrderResponse(oRsp)
 			continue
 		}
 
