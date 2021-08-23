@@ -7,7 +7,7 @@ func NewPMLog() (*PMLog, error) {
 	return &PMLog{}, nil
 }
 
-func (log *PMLog) Append(color uint32, record string) (uint64, error) {
+func (log *PMLog) Append(record string) (uint64, error) {
 	return 0, nil
 }
 
