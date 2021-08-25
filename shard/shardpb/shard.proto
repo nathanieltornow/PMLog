@@ -1,0 +1,27 @@
+syntax = "proto3";
+package sequencer;
+
+option go_package = "github.com/nathanieltornow/PMLog/shard/shardpb";
+
+service Shard {
+  rpc Replicate(stream ReplicationRequest) returns(stream OrderResponse);
+  rpc Append(AppendRequest) returns (OrderResponse);
+}
+
+message AppendRequest {
+  string Record = 1;
+}
+
+message ReplicationRequest {
+  uint64 Lsn = 1;
+  string Record = 2;
+}
+
+message OrderResponse {
+  uint64 Lsn = 1;
+  uint64 Gsn = 2;
+  uint32 NumOfRecords = 3;
+  uint32 Color = 4;
+  uint32 OriginColor = 5;
+}
+
