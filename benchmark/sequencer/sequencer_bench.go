@@ -37,17 +37,17 @@ func main() {
 	defer f.Close()
 
 	for t := threads; t < threads+20; t++ {
-		for i := 0; i < config.Threads; i++ {
+		for i := 0; i < t; i++ {
 			go benchmarkSequencer(config.Endpoint, uint32(*colorFlag), uint32(i), config.Runtime, interval)
 		}
 		overallThroughput := 0
 		latencySum := time.Duration(0)
-		for i := 0; i < config.Threads; i++ {
+		for i := 0; i < t; i++ {
 			res := <-resultC
 			overallThroughput += res.throughput
 			latencySum += res.latency
 		}
-		ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(config.Threads))
+		ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(t))
 		throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
 		fmt.Printf("Latency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
 
