@@ -51,7 +51,7 @@ func main() {
 		throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
 		fmt.Printf("Latency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
 
-		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", ovrLatency.Microseconds(), throughputPerSecond)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", throughputPerSecond, ovrLatency.Microseconds())); err != nil {
 			logrus.Fatalln(err)
 		}
 	}
