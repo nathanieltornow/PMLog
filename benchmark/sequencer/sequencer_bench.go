@@ -14,7 +14,7 @@ var (
 	configFile = flag.String("config", "", "")
 	colorFlag  = flag.Int("color", 0, "")
 
-	startTime = time.Now() //.Truncate(time.Minute).Add(time.Minute)
+	startTime = time.Now().Truncate(time.Minute).Add(time.Minute)
 	resultC   chan *benchmarkResult
 )
 
