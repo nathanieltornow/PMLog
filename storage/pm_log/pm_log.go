@@ -11,7 +11,7 @@ func (log *PMLog) Append(record string) (uint64, error) {
 	return 0, nil
 }
 
-func (log *PMLog) Commit(color uint32, lsn uint64, gsn uint64) error {
+func (log *PMLog) Commit(lsn uint64, color uint32, gsn uint64) error {
 	return nil
 }
 
