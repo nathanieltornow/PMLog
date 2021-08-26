@@ -7,6 +7,7 @@ import (
 	seqclient "github.com/nathanieltornow/PMLog/sequencer/seq_client"
 	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
+	"os"
 	"time"
 )
 
@@ -14,8 +15,7 @@ var (
 	configFile = flag.String("config", "", "")
 	colorFlag  = flag.Int("color", 0, "")
 
-	startTime = time.Now().Truncate(time.Minute).Add(time.Minute)
-	resultC   chan *benchmarkResult
+	resultC chan *benchmarkResult
 )
 
 func main() {
@@ -26,19 +26,36 @@ func main() {
 	}
 	resultC = make(chan *benchmarkResult, config.Threads)
 	interval := time.Duration(time.Second.Nanoseconds() / int64(config.Ops))
-	for i := 0; i < config.Threads; i++ {
-		go benchmarkSequencer(config.Endpoint, uint32(*colorFlag), uint32(i), config.Runtime, interval)
+
+	threads := config.Threads
+
+	f, err := os.OpenFile("result.csv",
+		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		logrus.Fatalln(err)
 	}
-	overallThroughput := 0
-	latencySum := time.Duration(0)
-	for i := 0; i < config.Threads; i++ {
-		res := <-resultC
-		overallThroughput += res.throughput
-		latencySum += res.latency
+	defer f.Close()
+
+	for t := threads; t < threads+20; t++ {
+		for i := 0; i < config.Threads; i++ {
+			go benchmarkSequencer(config.Endpoint, uint32(*colorFlag), uint32(i), config.Runtime, interval)
+		}
+		overallThroughput := 0
+		latencySum := time.Duration(0)
+		for i := 0; i < config.Threads; i++ {
+			res := <-resultC
+			overallThroughput += res.throughput
+			latencySum += res.latency
+		}
+		ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(config.Threads))
+		throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
+		fmt.Printf("Latency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
+
+		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", ovrLatency.Microseconds(), throughputPerSecond)); err != nil {
+			logrus.Fatalln(err)
+		}
 	}
-	ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(config.Threads))
-	throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
-	fmt.Printf("Latency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
+
 }
 
 type benchmarkResult struct {
@@ -81,7 +98,7 @@ func benchmarkSequencer(IP string, color, originColor uint32, runtime, interval 
 		resultC <- &benchmarkResult{latency: lat, throughput: i}
 	}()
 
-	<-time.After(time.Until(startTime))
+	<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 
 	stop := time.After(runtime)
 
