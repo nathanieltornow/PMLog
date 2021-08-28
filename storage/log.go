@@ -1,9 +1,8 @@
 package storage
 
 type Log interface {
-	// Append stores record and returns the local-sequence-number lsn, which will be used to find the record
-	// on an Commit request
-	Append(record string) (lsn uint64, err error)
+	// Append stores record with local-sequence-number lsn
+	Append(record string, lsn uint64) (err error)
 
 	// Commit commits the records which is stored on local-sequence-number lsn with the global-sequence-number gsn on
 	// on the log of color. The record can be committed for multiple colors.

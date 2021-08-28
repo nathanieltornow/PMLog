@@ -7,8 +7,8 @@ func NewPMLog() (*PMLog, error) {
 	return &PMLog{}, nil
 }
 
-func (log *PMLog) Append(record string) (uint64, error) {
-	return 0, nil
+func (log *PMLog) Append(record string, lsn uint64) error {
+	return nil
 }
 
 func (log *PMLog) Commit(lsn uint64, color uint32, gsn uint64) error {
