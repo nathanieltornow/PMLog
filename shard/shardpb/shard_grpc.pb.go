@@ -14,154 +14,190 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// ShardClient is the client API for Shard service.
+// NodeClient is the client API for Node service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type ShardClient interface {
-	Replicate(ctx context.Context, opts ...grpc.CallOption) (Shard_ReplicateClient, error)
-	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*OrderResponse, error)
+type NodeClient interface {
+	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*OK, error)
+	Replicate(ctx context.Context, opts ...grpc.CallOption) (Node_ReplicateClient, error)
+	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
 }
 
-type shardClient struct {
+type nodeClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewShardClient(cc grpc.ClientConnInterface) ShardClient {
-	return &shardClient{cc}
+func NewNodeClient(cc grpc.ClientConnInterface) NodeClient {
+	return &nodeClient{cc}
 }
 
-func (c *shardClient) Replicate(ctx context.Context, opts ...grpc.CallOption) (Shard_ReplicateClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Shard_ServiceDesc.Streams[0], "/sequencer.Shard/Replicate", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &shardReplicateClient{stream}
-	return x, nil
-}
-
-type Shard_ReplicateClient interface {
-	Send(*ReplicationRequest) error
-	Recv() (*OrderResponse, error)
-	grpc.ClientStream
-}
-
-type shardReplicateClient struct {
-	grpc.ClientStream
-}
-
-func (x *shardReplicateClient) Send(m *ReplicationRequest) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *shardReplicateClient) Recv() (*OrderResponse, error) {
-	m := new(OrderResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *shardClient) Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*OrderResponse, error) {
-	out := new(OrderResponse)
-	err := c.cc.Invoke(ctx, "/sequencer.Shard/Append", in, out, opts...)
+func (c *nodeClient) Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*OK, error) {
+	out := new(OK)
+	err := c.cc.Invoke(ctx, "/sequencer.Node/Register", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-// ShardServer is the server API for Shard service.
-// All implementations must embed UnimplementedShardServer
+func (c *nodeClient) Replicate(ctx context.Context, opts ...grpc.CallOption) (Node_ReplicateClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[0], "/sequencer.Node/Replicate", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeReplicateClient{stream}
+	return x, nil
+}
+
+type Node_ReplicateClient interface {
+	Send(*ReplicaMessage) error
+	Recv() (*ReplicaMessage, error)
+	grpc.ClientStream
+}
+
+type nodeReplicateClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeReplicateClient) Send(m *ReplicaMessage) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *nodeReplicateClient) Recv() (*ReplicaMessage, error) {
+	m := new(ReplicaMessage)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *nodeClient) Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error) {
+	out := new(AppendResponse)
+	err := c.cc.Invoke(ctx, "/sequencer.Node/Append", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// NodeServer is the server API for Node service.
+// All implementations must embed UnimplementedNodeServer
 // for forward compatibility
-type ShardServer interface {
-	Replicate(Shard_ReplicateServer) error
-	Append(context.Context, *AppendRequest) (*OrderResponse, error)
-	mustEmbedUnimplementedShardServer()
+type NodeServer interface {
+	Register(context.Context, *RegisterRequest) (*OK, error)
+	Replicate(Node_ReplicateServer) error
+	Append(context.Context, *AppendRequest) (*AppendResponse, error)
+	mustEmbedUnimplementedNodeServer()
 }
 
-// UnimplementedShardServer must be embedded to have forward compatible implementations.
-type UnimplementedShardServer struct {
+// UnimplementedNodeServer must be embedded to have forward compatible implementations.
+type UnimplementedNodeServer struct {
 }
 
-func (UnimplementedShardServer) Replicate(Shard_ReplicateServer) error {
+func (UnimplementedNodeServer) Register(context.Context, *RegisterRequest) (*OK, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Register not implemented")
+}
+func (UnimplementedNodeServer) Replicate(Node_ReplicateServer) error {
 	return status.Errorf(codes.Unimplemented, "method Replicate not implemented")
 }
-func (UnimplementedShardServer) Append(context.Context, *AppendRequest) (*OrderResponse, error) {
+func (UnimplementedNodeServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Append not implemented")
 }
-func (UnimplementedShardServer) mustEmbedUnimplementedShardServer() {}
+func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
-// UnsafeShardServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to ShardServer will
+// UnsafeNodeServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to NodeServer will
 // result in compilation errors.
-type UnsafeShardServer interface {
-	mustEmbedUnimplementedShardServer()
+type UnsafeNodeServer interface {
+	mustEmbedUnimplementedNodeServer()
 }
 
-func RegisterShardServer(s grpc.ServiceRegistrar, srv ShardServer) {
-	s.RegisterService(&Shard_ServiceDesc, srv)
+func RegisterNodeServer(s grpc.ServiceRegistrar, srv NodeServer) {
+	s.RegisterService(&Node_ServiceDesc, srv)
 }
 
-func _Shard_Replicate_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(ShardServer).Replicate(&shardReplicateServer{stream})
+func _Node_Register_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(RegisterRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(NodeServer).Register(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/sequencer.Node/Register",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(NodeServer).Register(ctx, req.(*RegisterRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type Shard_ReplicateServer interface {
-	Send(*OrderResponse) error
-	Recv() (*ReplicationRequest, error)
+func _Node_Replicate_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(NodeServer).Replicate(&nodeReplicateServer{stream})
+}
+
+type Node_ReplicateServer interface {
+	Send(*ReplicaMessage) error
+	Recv() (*ReplicaMessage, error)
 	grpc.ServerStream
 }
 
-type shardReplicateServer struct {
+type nodeReplicateServer struct {
 	grpc.ServerStream
 }
 
-func (x *shardReplicateServer) Send(m *OrderResponse) error {
+func (x *nodeReplicateServer) Send(m *ReplicaMessage) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *shardReplicateServer) Recv() (*ReplicationRequest, error) {
-	m := new(ReplicationRequest)
+func (x *nodeReplicateServer) Recv() (*ReplicaMessage, error) {
+	m := new(ReplicaMessage)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
 	return m, nil
 }
 
-func _Shard_Append_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _Node_Append_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(AppendRequest)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(ShardServer).Append(ctx, in)
+		return srv.(NodeServer).Append(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/sequencer.Shard/Append",
+		FullMethod: "/sequencer.Node/Append",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ShardServer).Append(ctx, req.(*AppendRequest))
+		return srv.(NodeServer).Append(ctx, req.(*AppendRequest))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// Shard_ServiceDesc is the grpc.ServiceDesc for Shard service.
+// Node_ServiceDesc is the grpc.ServiceDesc for Node service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Shard_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "sequencer.Shard",
-	HandlerType: (*ShardServer)(nil),
+var Node_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "sequencer.Node",
+	HandlerType: (*NodeServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
+			MethodName: "Register",
+			Handler:    _Node_Register_Handler,
+		},
+		{
 			MethodName: "Append",
-			Handler:    _Shard_Append_Handler,
+			Handler:    _Node_Append_Handler,
 		},
 	},
 	Streams: []grpc.StreamDesc{
 		{
 			StreamName:    "Replicate",
-			Handler:       _Shard_Replicate_Handler,
+			Handler:       _Node_Replicate_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

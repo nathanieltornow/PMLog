@@ -3,25 +3,35 @@ package sequencer;
 
 option go_package = "github.com/nathanieltornow/PMLog/shard/shardpb";
 
-service Shard {
-  rpc Replicate(stream ReplicationRequest) returns(stream OrderResponse);
-  rpc Append(AppendRequest) returns (OrderResponse);
+service Node {
+  rpc Register(RegisterRequest) returns (OK);
+  rpc Replicate(stream ReplicaMessage) returns(stream ReplicaMessage);
+  rpc Append(AppendRequest) returns (AppendResponse);
 }
 
 message AppendRequest {
   string Record = 1;
+  uint32 Color = 2;
 }
 
-message ReplicationRequest {
-  uint64 Lsn = 1;
-  string Record = 2;
+message AppendResponse {
+  uint32 SN = 1;
+  uint64 GSN = 2;
 }
 
-message OrderResponse {
-  uint64 Lsn = 1;
-  uint64 Gsn = 2;
-  uint32 NumOfRecords = 3;
-  uint32 Color = 4;
-  uint32 OriginColor = 5;
+message ReplicaMessage {
+  enum Phase {
+    REP = 0;
+    ACK = 1;
+    COM = 2;
+  }
+  Phase Type = 1;
+  uint32 SN = 2;
+  string Record = 3;
 }
 
+message RegisterRequest {
+  string IP = 1;
+}
+
+message OK {}
