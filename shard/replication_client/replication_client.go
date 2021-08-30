@@ -13,6 +13,7 @@ type ReplicationClient struct {
 	mu            sync.Mutex
 	numOfReplicas uint32
 	snToAcks      map[uint64]uint32
+	replicas      map[string]bool
 
 	comRepCs map[uint32]chan *shardpb.ReplicaMessage
 	repIDCtr uint32
@@ -31,14 +32,21 @@ func NewReplicationClient() *ReplicationClient {
 	return repCl
 }
 
-func (r *ReplicationClient) AddReplica(IP string) error {
-	conn, err := grpc.Dial(IP, grpc.WithInsecure())
+func (r *ReplicationClient) AddReplica(ourIP, replicaIP string) error {
+	conn, err := grpc.Dial(replicaIP, grpc.WithInsecure())
 	if err != nil {
 		return err
 	}
 	client := shardpb.NewNodeClient(conn)
-	stream, err := client.Replicate(context.Background())
 
+	if ourIP != "" {
+		_, err = client.Register(context.Background(), &shardpb.RegisterRequest{IP: ourIP})
+		if err != nil {
+			return fmt.Errorf("failed to register at replica: %v", err)
+		}
+	}
+
+	stream, err := client.Replicate(context.Background())
 	if err != nil {
 		return fmt.Errorf("failed to start replication stream: %v", err)
 	}

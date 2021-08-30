@@ -8,7 +8,7 @@ import (
 )
 
 func (n *Node) Register(_ context.Context, request *shardpb.RegisterRequest) (*shardpb.OK, error) {
-	err := n.repClient.AddReplica(request.IP)
+	err := n.repClient.AddReplica("", request.IP)
 	if err != nil {
 		return nil, fmt.Errorf("failed to register replica: %v", err)
 	}
