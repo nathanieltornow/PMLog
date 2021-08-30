@@ -15,7 +15,7 @@ message AppendRequest {
 }
 
 message AppendResponse {
-  uint32 SN = 1;
+  uint64 SN = 1;
   uint64 GSN = 2;
 }
 
@@ -26,7 +26,7 @@ message ReplicaMessage {
     COM = 2;
   }
   Phase Type = 1;
-  uint32 SN = 2;
+  uint64 SN = 2;
   string Record = 3;
 }
 

@@ -12,7 +12,7 @@ import (
 type ReplicationClient struct {
 	mu            sync.Mutex
 	numOfReplicas uint32
-	snToAcks      map[uint32]uint32
+	snToAcks      map[uint64]uint32
 
 	comRepCs map[uint32]chan *shardpb.ReplicaMessage
 	repIDCtr uint32
@@ -22,13 +22,13 @@ type ReplicationClient struct {
 	comRepC chan *shardpb.ReplicaMessage
 }
 
-func NewReplicationClient() (*ReplicationClient, error) {
+func NewReplicationClient() *ReplicationClient {
 	repCl := new(ReplicationClient)
 	repCl.ackC = make(chan *shardpb.ReplicaMessage, 1024)
 	repCl.comRepC = make(chan *shardpb.ReplicaMessage, 1024)
 	repCl.comRepCs = make(map[uint32]chan *shardpb.ReplicaMessage)
 	go repCl.broadcastReplicationMessages()
-	return nil, nil
+	return repCl
 }
 
 func (r *ReplicationClient) AddReplica(IP string) error {
@@ -55,7 +55,7 @@ func (r *ReplicationClient) GetAcknowledgements() <-chan *shardpb.ReplicaMessage
 	return r.ackC
 }
 
-func (r *ReplicationClient) MakeComRepMessage() chan<- *shardpb.ReplicaMessage {
+func (r *ReplicationClient) BroadcastReplicaMessages() chan<- *shardpb.ReplicaMessage {
 	return r.comRepC
 }
 
