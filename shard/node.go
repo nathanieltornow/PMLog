@@ -41,14 +41,19 @@ type Node struct {
 	repInC  chan *shardpb.ReplicaMessage
 	ackOutC chan *shardpb.ReplicaMessage
 
+	// client channels
 	ackInC       <-chan *shardpb.ReplicaMessage
 	replicaOutCh chan<- *shardpb.ReplicaMessage
 }
 
-func NewNode(primLog, secLog storage.Log) (*Node, error) {
+func NewNode(ID, color uint32, primLog, secLog storage.Log) (*Node, error) {
 	node := new(Node)
+	node.ID = ID
+	node.color = color
 	node.primLog = primLog
 	node.secLog = secLog
+	node.primWrC = make(chan *incomingRecord, 1024)
+	node.secWrC = make(chan *incomingRecord, 1024)
 	node.comInC = make(chan *shardpb.ReplicaMessage, 1024)
 	node.repInC = make(chan *shardpb.ReplicaMessage, 1024)
 	node.ackOutC = make(chan *shardpb.ReplicaMessage, 1024)
@@ -61,13 +66,6 @@ func (n *Node) Start(IP string, replicaIPs []string) error {
 	n.repClient = replication_client.NewReplicationClient()
 	n.replicaOutCh = n.repClient.BroadcastReplicaMessages()
 	n.ackInC = n.repClient.GetAcknowledgements()
-
-	for _, rep := range replicaIPs {
-		err := n.repClient.AddReplica(IP, rep)
-		if err != nil {
-			return fmt.Errorf("failed to add replica: %v", err)
-		}
-	}
 
 	go n.storePrimaryRecords()
 	go n.listenForAcks()
@@ -82,8 +80,23 @@ func (n *Node) Start(IP string, replicaIPs []string) error {
 	server := grpc.NewServer()
 	shardpb.RegisterNodeServer(server, n)
 	logrus.Infoln("starting node on ", IP)
-	if err := server.Serve(lis); err != nil {
-		return fmt.Errorf("failed to start sequencer: %v", err)
+
+	waitC := make(chan bool)
+
+	var retErr error
+	go func() {
+		if err := server.Serve(lis); err != nil {
+			retErr = err
+		}
+	}()
+
+	for _, rep := range replicaIPs {
+		err := n.repClient.AddReplica(IP, rep)
+		if err != nil {
+			return fmt.Errorf("failed to add replica: %v", err)
+		}
 	}
-	return nil
+
+	<-waitC
+	return retErr
 }

@@ -53,7 +53,7 @@ func (n *Node) handleRepMsgs() {
 		if err != nil {
 			logrus.Errorf("failed to append secLog: %v", err)
 		}
-		n.ackOutC <- repMsg
+		n.ackOutC <- &shardpb.ReplicaMessage{Type: shardpb.ReplicaMessage_ACK, SN: repMsg.SN}
 	}
 }
 

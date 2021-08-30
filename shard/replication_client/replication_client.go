@@ -13,7 +13,6 @@ type ReplicationClient struct {
 	mu            sync.Mutex
 	numOfReplicas uint32
 	snToAcks      map[uint64]uint32
-	replicas      map[string]bool
 
 	comRepCs map[uint32]chan *shardpb.ReplicaMessage
 	repIDCtr uint32
@@ -28,6 +27,7 @@ func NewReplicationClient() *ReplicationClient {
 	repCl.ackC = make(chan *shardpb.ReplicaMessage, 1024)
 	repCl.comRepC = make(chan *shardpb.ReplicaMessage, 1024)
 	repCl.comRepCs = make(map[uint32]chan *shardpb.ReplicaMessage)
+	repCl.snToAcks = make(map[uint64]uint32)
 	go repCl.broadcastReplicationMessages()
 	return repCl
 }
@@ -38,7 +38,6 @@ func (r *ReplicationClient) AddReplica(ourIP, replicaIP string) error {
 		return err
 	}
 	client := shardpb.NewNodeClient(conn)
-
 	if ourIP != "" {
 		_, err = client.Register(context.Background(), &shardpb.RegisterRequest{IP: ourIP})
 		if err != nil {

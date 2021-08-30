@@ -12,10 +12,8 @@ func (n *Node) Append(_ context.Context, request *shardpb.AppendRequest) (*shard
 	sn := (uint64(n.ctr) << 32) + uint64(n.ID)
 	n.ctr++
 	n.ctrMu.Unlock()
-
 	inRec := &incomingRecord{record: request.Record, sn: sn, replicated: make(chan bool)}
 	n.primWrC <- inRec
-
 	// wait for the record to be replicated
 	<-inRec.replicated
 	err := n.primLog.Commit(sn, 0, sn)
