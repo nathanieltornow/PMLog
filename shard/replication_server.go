@@ -16,7 +16,8 @@ func (n *Node) Register(_ context.Context, request *shardpb.RegisterRequest) (*s
 }
 
 func (n *Node) Replicate(stream shardpb.Node_ReplicateServer) error {
-	go n.replyAcks(stream)
+	repInC := make(chan *shardpb.ReplicaMessage, 512)
+	go n.handleRepMsgs(repInC, stream)
 	for {
 		msg, err := stream.Recv()
 		if err != nil {
@@ -24,7 +25,7 @@ func (n *Node) Replicate(stream shardpb.Node_ReplicateServer) error {
 			return err
 		}
 		if msg.Type == shardpb.ReplicaMessage_REP {
-			n.repInC <- msg
+			repInC <- msg
 		}
 		if msg.Type == shardpb.ReplicaMessage_COM {
 			n.comInC <- msg
@@ -41,8 +42,8 @@ func (n *Node) handleCommitMsgs() {
 	}
 }
 
-func (n *Node) handleRepMsgs() {
-	for repMsg := range n.repInC {
+func (n *Node) handleRepMsgs(repInC chan *shardpb.ReplicaMessage, stream shardpb.Node_ReplicateServer) {
+	for repMsg := range repInC {
 		coorCtr := uint32(repMsg.SN >> 32)
 		n.ctrMu.Lock()
 		if coorCtr > n.ctr {
@@ -53,15 +54,9 @@ func (n *Node) handleRepMsgs() {
 		if err != nil {
 			logrus.Errorf("failed to append secLog: %v", err)
 		}
-		n.ackOutC <- &shardpb.ReplicaMessage{Type: shardpb.ReplicaMessage_ACK, SN: repMsg.SN}
-	}
-}
-
-func (n *Node) replyAcks(stream shardpb.Node_ReplicateServer) {
-	for repMsg := range n.ackOutC {
-		err := stream.Send(repMsg)
+		err = stream.Send(&shardpb.ReplicaMessage{Type: shardpb.ReplicaMessage_ACK, SN: repMsg.SN})
 		if err != nil {
-			logrus.Errorf("failed to send ackMsg")
+			logrus.Errorf("failed to send ACK: %v", err)
 		}
 	}
 }

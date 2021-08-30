@@ -73,7 +73,6 @@ func (r *ReplicationClient) receiveReplicationMessages(stream shardpb.Node_Repli
 			logrus.Errorf("failed to receive replica-msg: %v", err)
 			return
 		}
-
 		if in.Type == shardpb.ReplicaMessage_ACK {
 			r.mu.Lock()
 			_, ok := r.snToAcks[in.SN]

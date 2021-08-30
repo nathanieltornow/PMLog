@@ -38,7 +38,6 @@ type Node struct {
 	pendingRecordsMu sync.RWMutex
 
 	comInC  chan *shardpb.ReplicaMessage
-	repInC  chan *shardpb.ReplicaMessage
 	ackOutC chan *shardpb.ReplicaMessage
 
 	// client channels
@@ -55,7 +54,6 @@ func NewNode(ID, color uint32, primLog, secLog storage.Log) (*Node, error) {
 	node.primWrC = make(chan *incomingRecord, 1024)
 	node.secWrC = make(chan *incomingRecord, 1024)
 	node.comInC = make(chan *shardpb.ReplicaMessage, 1024)
-	node.repInC = make(chan *shardpb.ReplicaMessage, 1024)
 	node.ackOutC = make(chan *shardpb.ReplicaMessage, 1024)
 	node.pendingRecords = make(map[uint64]*incomingRecord)
 
@@ -71,7 +69,6 @@ func (n *Node) Start(IP string, replicaIPs []string) error {
 	go n.listenForAcks()
 
 	go n.handleCommitMsgs()
-	go n.handleRepMsgs()
 
 	lis, err := net.Listen("tcp", IP)
 	if err != nil {
