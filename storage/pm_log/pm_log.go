@@ -16,26 +16,31 @@ func NewPMLog() (*PMLog, error) {
 	return &ret, nil
 }
 
-func (log *PMLog) Append(record string, lsn uint64) error {
-	cstr := C.CString(record)
-	C.Append(log.pmLog, cstr, C.ulong(lsn))
-	C.free(unsafe.Pointer(cstr))
+func (log *PMLog) Append(record []byte, lsn uint64) error {
+	C.cAppend(log.pmLog, (*C.char)(unsafe.Pointer(&record)), C.ulong(lsn))
 
 	return nil
 }
 
-func (log *PMLog) Commit(lsn uint64, color uint32, gsn uint64) error {
-	C.Commit(log.pmLog, C.ulong(lsn), C.uint(color), C.ulong(gsn))
+func (log *PMLog) Commit(lsn uint64,gsn uint64) error {
+	C.cCommit(log.pmLog, C.ulong(lsn), C.ulong(gsn))
 	return nil
 }
 
-func (log *PMLog) Read(color uint32, gsn uint64) (string, error) {
-	var ret = C.GoString(C.Read(log.pmLog, C.uint(color), C.ulong(gsn)))
+func (log *PMLog) Read(gsn uint64) ([]byte, error) {
+	var ret []byte
+	C.cRead(log.pmLog, C.ulong(gsn), (*C.char)(unsafe.Pointer(&ret)))
 	
 	return ret, nil
 }
 
-func (log *PMLog) Trim(color uint32, gsn uint64) error {
-	C.Trim(log.pmLog, C.uint(color), C.ulong(gsn))
+func (log *PMLog) Trim(gsn uint64) error {
+	C.cTrim(log.pmLog, C.ulong(gsn))
 	return nil
 }
+
+
+
+
+
+

@@ -34,31 +34,22 @@ void *cppStartUp() {
 	return (void *) (r->pmLog.get());
 }
 
-std::string PersistentString::data() const { 
-	return std::string(this->array); 
+const char* PersistentString::data() const{ 
+	return this->array; 
 }
 
-PersistentString::PersistentString(std::string* s) {
-	unsigned long length = s->length();
-	
-	if (length < KEY_SIZE - 1) {
-		pmemobj_tx_add_range_direct(this->array, KEY_SIZE);
-		strcpy(this->array, s->c_str());
-	}
+PersistentString::PersistentString(const char* s) {	
+	pmemobj_tx_add_range_direct(this->array, KEY_SIZE);
+	strcpy(this->array, s);
 }
-
-
-using PString = struct PersistentString;
-using LSNmap = concurrent_hash_map<p<uint64_t>, persistent_ptr<PString>>;
-using GSNmap = concurrent_hash_map<p<uint64_t>, persistent_ptr<PString>>;
-using ColorMap = concurrent_hash_map<p<uint32_t>, persistent_ptr<GSNmap>>;
 	
 cppPMLog::cppPMLog(pool_base pop) {
 	this->pop = pop;
+	this->highest_gsn = 0;
 
 	pmem::obj::transaction::run(pop, [&] {
 		lsnPptr = make_persistent<LSNmap>();
-		colorPptr = make_persistent<ColorMap>();
+		gsnPptr = make_persistent<GSNmap>();
 	});
 }
 
@@ -68,52 +59,32 @@ cppPMLog::~cppPMLog() {
 
 void cppPMLog::restartMaps() {		
 	this->lsnPptr->defragment();
-	this->colorPptr->defragment();
+	this->gsnPptr->defragment();
 	this->lsnPptr->runtime_initialize();
-	this->colorPptr->runtime_initialize();
-	
-	ColorMap::iterator it;
-	
-	for (it = this->colorPptr->begin(); it != this->colorPptr->end(); it++) {
-		it->second->defragment();
-		it->second->runtime_initialize();			
-	}
+	this->gsnPptr->runtime_initialize();
 }
 
-int cppPMLog::Append(std::string record, uint64_t lsn) {		
-	persistent_ptr<PString> s;
+int cppPMLog::Append(const char* record, uint64_t lsn) {	
+	persistent_ptr<PString> s; 
+	
 	transaction::run(this->pop, [&] {
-		s = make_persistent<PString>(&record);
+		s = make_persistent<PString>(record);
 	});
 	this->lsnPptr->insert(LSNmap::value_type(lsn, s));
 	
-	LSNmap::accessor acc;
-	this->lsnPptr->find(acc, lsn);
-	
-	persistent_ptr<PString> r = acc->second;
-
 	return 0;
 }
 
-int cppPMLog::Commit(uint64_t lsn, uint32_t color, uint64_t gsn) {
+int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 	LSNmap::accessor acc;
 	
 	bool res = this->lsnPptr->find(acc, lsn);
 
 	if (res) {
 		persistent_ptr<PString> record = acc->second;
-		ColorMap::accessor cacc;
-		if (!(this->colorPptr->find(cacc, color))) {
-			persistent_ptr<GSNmap> gsnMap;
-			transaction::run(this->pop, [&] {
-				gsnMap = make_persistent<GSNmap>();
-			});
-			this->colorPptr->insert(ColorMap::value_type(color, gsnMap));
-		}
-		this->colorPptr->find(cacc, color);
-		persistent_ptr<GSNmap> gsnMap = cacc->second;
-		gsnMap->insert(GSNmap::value_type(gsn, record));
-
+		gsnPptr->insert(GSNmap::value_type(gsn, record));
+		this->highest_gsn = gsn;
+		
 		return 0;
 	}
 	else {
@@ -123,52 +94,34 @@ int cppPMLog::Commit(uint64_t lsn, uint32_t color, uint64_t gsn) {
 	}	
 }
 
-std::string cppPMLog::Read(uint32_t color, uint64_t gsn) {
-	ColorMap::accessor cacc;
-
-	bool res = this->colorPptr->find(cacc, color);
-
-	if (res) {
-		persistent_ptr<GSNmap> gsnMap = cacc->second;
-		GSNmap::accessor acc;
-		if (gsnMap->find(acc, gsn)) {
-			return acc->second->data();
-		}
-		else {
-			std::cout << "Record with GSN " << gsn << " not found " << std::endl;
-			return "";
-		}
-	}
-	else {
-		std::cout << "Log with color " << color << " not found " << std::endl;
-	
-		return "";
-	}	
-}
-
-int cppPMLog::Trim(uint32_t color, uint64_t gsn) {
-	ColorMap::accessor cacc;
-	
-	bool res = this->colorPptr->find(cacc, color);
-	
-	if (res) {
-		persistent_ptr<GSNmap> gsnMap = cacc->second;
-		GSNmap::iterator it;
-		
-		for (it = gsnMap->begin(); it != gsnMap->end(); it++) {
-			if (it->first < gsn) {
-				gsnMap->erase(it->first);
-			}
-		}
-		
+uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
+	if (gsn > this->highest_gsn)
 		return 0;
+	
+	GSNmap::accessor acc;
+	if (gsnPptr->find(acc, gsn))
+		strcpy(storage, acc->second->data());
+		
+	uint64_t next_gsn = gsn + 1;
+	while (!(gsnPptr->find(acc, next_gsn))) {
+		if (next_gsn > this->highest_gsn)
+			return 0;
+		next_gsn++;
 	}
-	else {
-		std::cout << "Cannot find log with Color " << color << std::endl;
-		return -1;
-	}	
+	return next_gsn;
 }
 
+int cppPMLog::Trim(uint64_t gsn) {
+	GSNmap::iterator it;
+	
+	for (it = gsnPptr->begin(); it != gsnPptr->end(); it++) {
+		if (it->first < gsn) {
+			gsnPptr->erase(it->first);
+		}
+	}
+	
+	return 0;
+}
 
 using cppPMLog = struct cppPMLog;
 	
@@ -176,13 +129,6 @@ using cppPMLog = struct cppPMLog;
 struct root {
     persistent_ptr<cppPMLog> pmLog;
 };
-
-
-
-
-
-
-
 
 int main() {
 	auto pop = pmem::obj::pool<root>::create("log", "example", 33554432); 

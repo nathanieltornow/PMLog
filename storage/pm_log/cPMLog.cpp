@@ -11,26 +11,26 @@ PMLog startUp() {
 	return (PMLog) cppStartUp();
 }
 
-int Append(PMLog log, char* record, uint64_t lsn) {
+int cAppend(PMLog log, const char* record, uint64_t lsn) {
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
-
+	
     return cppLog->Append(record, lsn);
 }
 
-int Commit(PMLog log, uint64_t lsn, uint32_t color, uint64_t gsn){
+int cCommit(PMLog log, uint64_t lsn, uint64_t gsn){
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
 
-    return cppLog->Commit(lsn, color, gsn);
+    return cppLog->Commit(lsn, gsn);
 }
 
-const char* Read(PMLog log, uint32_t color, uint64_t gsn) {
+uint64_t cRead(PMLog log, uint64_t gsn, char* storage) {
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
 
-    return (cppLog->Read(color, gsn).c_str());
+    return cppLog->Read(gsn, storage);
 }
 
-int Trim(PMLog log, uint32_t color, uint64_t gsn) {
+int cTrim(PMLog log, uint64_t gsn) {
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
 
-    return cppLog->Trim(color, gsn);
+    return cppLog->Trim(gsn);
 }

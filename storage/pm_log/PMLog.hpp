@@ -10,28 +10,28 @@ class PersistentString {
 private:
 	char array[KEY_SIZE];
 public:
-	std::string data() const;	
-	PersistentString(std::string* s);
+	const char* data() const;	
+	PersistentString(const char* s);
 };
 
 using PString = struct PersistentString;
 using LSNmap = concurrent_hash_map<p<uint64_t>, persistent_ptr<PString>>;
 using GSNmap = concurrent_hash_map<p<uint64_t>, persistent_ptr<PString>>;
-using ColorMap = concurrent_hash_map<p<uint32_t>, persistent_ptr<GSNmap>>;
 
 class cppPMLog {
 private:
 	persistent_ptr<LSNmap> lsnPptr;
-    persistent_ptr<ColorMap> colorPptr;
+    persistent_ptr<GSNmap> gsnPptr;
 	pool_base pop;
+	p<uint64_t> highest_gsn;
 public:
     cppPMLog(pool_base);
     ~cppPMLog();
     void restartMaps();
-    int Append(std::string record, uint64_t lsn);
-    int Commit(uint64_t lsn, uint32_t color, uint64_t gsn) ;
-    std::string Read(uint32_t color, uint64_t gsn);
-    int Trim(uint32_t color, uint64_t gsn);
+    int Append(const char* record, uint64_t lsn);
+    int Commit(uint64_t lsn, uint64_t gsn) ;
+    uint64_t Read(uint64_t gsn, char* storage);
+    int Trim(uint64_t gsn);
 };
 
 void* cppStartUp();
