@@ -1,15 +1,15 @@
-package seq_client
+package client
 
 import (
 	"context"
-	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"google.golang.org/grpc"
 )
 
 type Client struct {
-	stream pb.Sequencer_GetOrderClient
-	oRspC  chan *pb.OrderResponse
-	oReqC  chan *pb.OrderRequest
+	stream sequencerpb.Sequencer_GetOrderClient
+	oRspC  chan *sequencerpb.OrderResponse
+	oReqC  chan *sequencerpb.OrderRequest
 }
 
 func NewClient(IP string) (*Client, error) {
@@ -17,25 +17,25 @@ func NewClient(IP string) (*Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	pbClient := pb.NewSequencerClient(conn)
+	pbClient := sequencerpb.NewSequencerClient(conn)
 	stream, err := pbClient.GetOrder(context.Background())
 	if err != nil {
 		return nil, err
 	}
 	client := new(Client)
 	client.stream = stream
-	client.oReqC = make(chan *pb.OrderRequest, 1024)
-	client.oRspC = make(chan *pb.OrderResponse, 1024)
+	client.oReqC = make(chan *sequencerpb.OrderRequest, 1024)
+	client.oRspC = make(chan *sequencerpb.OrderResponse, 1024)
 	go client.sendOReqs()
 	go client.receiveORsps()
 	return client, nil
 }
 
-func (c *Client) MakeOrderRequests() chan<- *pb.OrderRequest {
+func (c *Client) MakeOrderRequests() chan<- *sequencerpb.OrderRequest {
 	return c.oReqC
 }
 
-func (c *Client) GetOrderResponses() <-chan *pb.OrderResponse {
+func (c *Client) GetOrderResponses() <-chan *sequencerpb.OrderResponse {
 	return c.oRspC
 }
 

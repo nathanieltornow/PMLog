@@ -2,8 +2,8 @@ package sequencer
 
 import (
 	"fmt"
-	seqclient "github.com/nathanieltornow/PMLog/sequencer/seq_client"
-	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
+	seq_client "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/client"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
@@ -17,7 +17,7 @@ const (
 )
 
 type Sequencer struct {
-	pb.UnimplementedSequencerServer
+	sequencerpb.UnimplementedSequencerServer
 
 	id     uint32
 	epoch  uint32
@@ -28,16 +28,16 @@ type Sequencer struct {
 	sn   uint32
 	snMu sync.Mutex
 
-	parentClient *seqclient.Client
+	parentClient *seq_client.Client
 
-	oReqCache   map[uint64]*pb.OrderRequest
+	oReqCache   map[uint64]*sequencerpb.OrderRequest
 	oReqCacheMu sync.Mutex
 
-	oRspCs   map[uint32]chan *pb.OrderResponse
+	oRspCs   map[uint32]chan *sequencerpb.OrderResponse
 	oRspCsID uint32
 	oRspCsMu sync.RWMutex
 
-	oReqCIn chan *pb.OrderRequest
+	oReqCIn chan *sequencerpb.OrderRequest
 }
 
 func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
@@ -45,9 +45,9 @@ func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
 	s.leader = leader
 	s.root = root
 	s.color = color
-	s.oReqCache = make(map[uint64]*pb.OrderRequest)
-	s.oRspCs = make(map[uint32]chan *pb.OrderResponse)
-	s.oReqCIn = make(chan *pb.OrderRequest, 256)
+	s.oReqCache = make(map[uint64]*sequencerpb.OrderRequest)
+	s.oRspCs = make(map[uint32]chan *sequencerpb.OrderResponse)
+	s.oReqCIn = make(chan *sequencerpb.OrderRequest, 256)
 	return s
 }
 
@@ -56,7 +56,7 @@ func (s *Sequencer) Start(IP string, parentIP string) error {
 		return s.startGRPCServer(IP)
 	}
 
-	client, err := seqclient.NewClient(parentIP)
+	client, err := seq_client.NewClient(parentIP)
 	if err != nil {
 		return fmt.Errorf("failed to connect to parent: %v", err)
 	}
@@ -72,7 +72,7 @@ func (s *Sequencer) startGRPCServer(IP string) error {
 		return fmt.Errorf("failed to listen: %v", err)
 	}
 	server := grpc.NewServer()
-	pb.RegisterSequencerServer(server, s)
+	sequencerpb.RegisterSequencerServer(server, s)
 
 	go s.handleOrderRequests()
 
@@ -92,8 +92,8 @@ func (s *Sequencer) startGRPCServer(IP string) error {
 	return nil
 }
 
-func (s *Sequencer) GetOrder(stream pb.Sequencer_GetOrderServer) error {
-	oRspC := make(chan *pb.OrderResponse, 256)
+func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error {
+	oRspC := make(chan *sequencerpb.OrderResponse, 256)
 
 	s.oRspCsMu.Lock()
 	id := s.oRspCsID

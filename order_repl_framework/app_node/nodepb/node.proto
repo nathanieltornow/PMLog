@@ -1,0 +1,35 @@
+syntax = "proto3";
+package app_node;
+
+option go_package = "github.com/nathanieltornow/app_node/nodepb";
+
+service Node {
+  rpc Register(RegisterRequest) returns (Empty);
+  rpc Prepare(stream Prep) returns (Empty);
+  rpc GetAcks(AckReq) returns (stream Ack);
+  rpc Commit(stream Com) returns (Empty);
+}
+
+message Prep {
+  uint64 localToken = 1;
+  uint32 color = 2;
+  string content = 3;
+}
+
+message Ack {
+  uint64 localToken = 1;
+}
+
+message AckReq {
+  uint32 NodeID = 1;
+}
+
+message Com {
+  uint64 localToken = 1;
+}
+
+message RegisterRequest {
+  string IP = 1;
+}
+
+message Empty {}

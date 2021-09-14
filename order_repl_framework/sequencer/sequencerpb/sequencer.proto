@@ -9,15 +9,13 @@ service Sequencer {
 
 message OrderRequest {
   uint64 Lsn = 1;
-  uint32 NumOfRecords = 2;
-  uint32 Color = 3;
-  uint32 OriginColor = 4;
+  uint32 Color = 2;
+  uint32 OriginColor = 3;
 }
 
 message OrderResponse {
   uint64 Lsn = 1;
   uint64 Gsn = 2;
-  uint32 NumOfRecords = 3;
-  uint32 Color = 4;
-  uint32 OriginColor = 5;
+  uint32 Color = 3;
+  uint32 OriginColor = 4;
 }

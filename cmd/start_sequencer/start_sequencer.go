@@ -2,7 +2,7 @@ package main
 
 import (
 	"flag"
-	"github.com/nathanieltornow/PMLog/sequencer"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer"
 	"github.com/sirupsen/logrus"
 )
 
