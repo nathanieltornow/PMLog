@@ -64,15 +64,15 @@ void cppPMLog::restartMaps() {
 	this->gsnPptr->runtime_initialize();
 }
 
-int cppPMLog::Append(const char* record, uint64_t lsn) {	
+int cppPMLog::Append(const char* record, uint64_t lsn) {
 	persistent_ptr<PString> s; 
-	
 	transaction::run(this->pop, [&] {
 		s = make_persistent<PString>(record);
 	});
-	this->lsnPptr->insert(LSNmap::value_type(lsn, s));
-	
-	return 0;
+	if (this->lsnPptr->insert(LSNmap::value_type(lsn, s)))	
+		return 0;
+	else
+		return -1;
 }
 
 int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
@@ -82,16 +82,14 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 
 	if (res) {
 		persistent_ptr<PString> record = acc->second;
-		gsnPptr->insert(GSNmap::value_type(gsn, record));
+		if (!(gsnPptr->insert(GSNmap::value_type(gsn, record))))
+			return -2;
 		this->highest_gsn = gsn;
 		
 		return 0;
 	}
-	else {
-		std::cout << "Record with LSN " << lsn << "not found" << std::endl;
-	
+	else
 		return -1;
-	}	
 }
 
 uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
@@ -124,54 +122,3 @@ int cppPMLog::Trim(uint64_t gsn) {
 }
 
 using cppPMLog = struct cppPMLog;
-	
-/*
-struct root {
-    persistent_ptr<cppPMLog> pmLog;
-};
-
-int main() {
-	auto pop = pmem::obj::pool<root>::create("log", "example", 33554432); 
-	//auto pop = pool<root>::open("log", "example");
-    auto r = pop.root(); 
-	
-	if (r->pmLog == nullptr) {
-		pmem::obj::transaction::run(pop, [&] {
-			r->pmLog = make_persistent<cppPMLog>(pop);
-		});
-	}
-	else {
-		pop.root()->pmLog->restartMaps();
-	}
-	
-	auto pmLog = pop.root()->pmLog;
-    auto &LSNMap = pmLog->lsnPptr;
-    auto &ColorMap = pmLog->colorPptr;	
-	
-	for (int i = 0; i < 1000; i++) {
-		int lsn = Append(pmLog, std::string("manos" + std::to_string(i)), i);
-		Commit(pmLog, i, 0, i); 
-	}
-	
-	Trim(pmLog, 0, 310);
-	
-	for (int i = 300; i < 330; i++) {
-		std::cout << Red(pmLog, 0, i) << std::endl;
-	}
-	
-	Trim(pmLog, 0, 500);
-	
-	for (int i = 1000; i < 1100; i++) {
-		int lsn = Append(pmLog, std::string("manos" + std::to_string(i)), i);
-		Commit(pmLog, i, 0, i); 
-	}
-	
-	Trim(pmLog, 0, 1000);
-	
-	for (int i = 980; i < 1100; i++) {
-		std::cout << Read(pmLog, 0, i) << std::endl;
-	}
-	
-	return 0;
-}
-*/
