@@ -11,6 +11,12 @@ PMLog startUp() {
 	return (PMLog) cppStartUp();
 }
 
+void finalize(PMLog log) {
+	persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
+	
+	cppFinalize(cppLog);
+}
+
 int cAppend(PMLog log, const char* record, uint64_t lsn) {
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
 	
