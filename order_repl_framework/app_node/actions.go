@@ -50,7 +50,7 @@ func (n *Node) handleAppCommitRequests() {
 		}
 		// put into channel to be broadcasted to other nodes and send orderrequest
 		n.prepCh <- prepMsg
-		n.orderCh <- &seqpb.OrderRequest{Lsn: prepMsg.LocalToken, Color: prepMsg.Color, OriginColor: n.color}
+		n.orderReqCh <- &seqpb.OrderRequest{Lsn: prepMsg.LocalToken, Color: prepMsg.Color, OriginColor: n.color}
 	}
 }
 
@@ -75,17 +75,9 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 	}
 }
 
-func (n *Node) sendOrderRequests() {
-	ch := n.orderClient.MakeOrderRequests()
-	for oReq := range n.orderCh {
-		ch <- oReq
-	}
-}
-
 func (n *Node) handleOrderResponses() {
-	ch := n.orderClient.GetOrderResponses()
-	for oRsp := range ch {
-		id := uint32(oRsp.Lsn << 32)
+	for oRsp := range n.orderRespCh {
+		id := uint32(oRsp.Lsn)
 		if id == n.id {
 			continue
 		}

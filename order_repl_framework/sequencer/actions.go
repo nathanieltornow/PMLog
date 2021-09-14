@@ -1,6 +1,7 @@
 package sequencer
 
 import (
+	"fmt"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 )
@@ -107,6 +108,7 @@ func (s *Sequencer) forwardOrderResponses(stream sequencerpb.Sequencer_GetOrderS
 	for oRsp := range oRspC {
 		err := stream.Send(oRsp)
 		if err != nil {
+			fmt.Println(err)
 			return
 		}
 	}

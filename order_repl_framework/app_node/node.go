@@ -42,8 +42,8 @@ type Node struct {
 
 	helpCtr uint32
 
-	orderCh     chan *seqpb.OrderRequest
-	orderClient *order_client.Client
+	orderRespCh <-chan *seqpb.OrderResponse
+	orderReqCh  chan<- *seqpb.OrderRequest
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -54,7 +54,6 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.ackChs = make(map[uint32]chan *nodepb.Ack)
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.prepCh = make(chan *nodepb.Prep, 1024)
-	node.orderCh = make(chan *seqpb.OrderRequest, 1024)
 	node.numOfAcks = make(map[uint64]uint32)
 	node.comCh = make(chan *nodepb.Com)
 	node.comStreams = make(map[uint32]nodepb.Node_CommitClient)
@@ -67,12 +66,18 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	if err != nil {
 		return err
 	}
-	n.orderClient = orderClient
+	n.orderReqCh = orderClient.MakeOrderRequests()
+	n.orderRespCh = orderClient.GetOrderResponses()
+
+	errC := make(chan error)
+	go func() {
+		err := n.startGRPCSever()
+		errC <- err
+	}()
 
 	go n.broadcastCommitMsgs()
 	go n.broadcastPrepareMsgs()
 	go n.handleAppCommitRequests()
-	go n.sendOrderRequests()
 	go n.handleOrderResponses()
 
 	for _, peerIp := range peerIpAddrs {
@@ -81,12 +86,12 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 			return err
 		}
 	}
-
-	return n.startGRPCSever()
+	err = <-errC
+	return err
 }
 
 func (n *Node) startGRPCSever() error {
-	lis, err := net.Listen("net", n.ipAddr)
+	lis, err := net.Listen("tcp", n.ipAddr)
 	if err != nil {
 		return err
 	}
@@ -98,6 +103,13 @@ func (n *Node) startGRPCSever() error {
 		return fmt.Errorf("failed to start node: %v", err)
 	}
 	return nil
+}
+
+func (n *Node) Register(_ context.Context, req *nodepb.RegisterRequest) (*nodepb.Empty, error) {
+	if err := n.connectToPeer(req.IP, false); err != nil {
+		return nil, err
+	}
+	return &nodepb.Empty{}, nil
 }
 
 func (n *Node) connectToPeer(peerIP string, back bool) error {

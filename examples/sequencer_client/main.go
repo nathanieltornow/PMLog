@@ -2,8 +2,8 @@ package main
 
 import (
 	"flag"
-	seqclient "github.com/nathanieltornow/PMLog/sequencer/seq_client"
-	pb "github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
+	seqclient "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/client"
+	pb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"time"
 )
@@ -31,7 +31,7 @@ func main() {
 
 	for i := 0; i < 10; i++ {
 		time.Sleep(time.Second)
-		oReq := &pb.OrderRequest{Lsn: uint64(i), NumOfRecords: 1, Color: uint32(*color)}
+		oReq := &pb.OrderRequest{Lsn: uint64(i), Color: uint32(*color)}
 		logrus.Infof("Sending OrderRequest %v\n", oReq)
 		oReqC <- oReq
 	}
