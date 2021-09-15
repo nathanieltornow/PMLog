@@ -68,6 +68,8 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 		if !ok {
 			n.numOfAcks[ackMsg.LocalToken] = 0
 		}
+		n.numOfAcks[ackMsg.LocalToken] += 1
+		n.numOfAcksMu.Unlock()
 		if (num + 1) == n.numOfPeers {
 			comMsg := &nodepb.Com{
 				LocalToken:  ackMsg.LocalToken,
@@ -76,8 +78,12 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 			}
 			n.possibleComCh <- comMsg
 			n.comCh <- comMsg
+
+			n.numOfAcksMu.Lock()
+			delete(n.numOfAcks, ackMsg.LocalToken)
+			n.numOfAcksMu.Unlock()
 		}
-		n.numOfAcksMu.Unlock()
+
 	}
 }
 
