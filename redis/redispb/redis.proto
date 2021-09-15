@@ -1,0 +1,13 @@
+syntax = "proto3";
+package app_node;
+
+option go_package = "github.com/nathanieltornow/PMLog/redis/redispb";
+
+
+message TransactionRequest {
+  string txStr = 1;
+}
+
+message TransactionResponse {
+  uint64 globalToken = 1;
+}
