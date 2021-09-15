@@ -7,7 +7,7 @@ type Application interface {
 
 	IsPrepared(localToken uint64) bool
 
-	Commit(localToken uint64) error
+	Commit(localToken uint64, color uint32, uint642 uint64) error
 }
 
 type CommitRequest struct {

@@ -5,6 +5,7 @@ import (
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	seqpb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
+	"sync"
 )
 
 func (n *Node) broadcastPrepareMsgs() {
@@ -66,10 +67,13 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 			n.numOfAcks[ackMsg.LocalToken] = 0
 		}
 		if (num + 1) == n.numOfPeers {
-			if err := n.app.Commit(ackMsg.LocalToken); err != nil {
-				logrus.Fatalln("Failed to commit")
+			comMsg := &nodepb.Com{
+				LocalToken:  ackMsg.LocalToken,
+				Color:       ackMsg.Color,
+				GlobalToken: ackMsg.GlobalToken,
 			}
-			n.comCh <- &nodepb.Com{LocalToken: ackMsg.LocalToken}
+			n.possibleComCh <- comMsg
+			n.comCh <- comMsg
 		}
 		n.numOfAcksMu.Unlock()
 	}
@@ -77,6 +81,7 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 
 func (n *Node) handleOrderResponses() {
 	for oRsp := range n.orderRespCh {
+		n.waitingORespCh <- oRsp
 		id := uint32(oRsp.Lsn)
 		if id == n.id {
 			continue
@@ -85,7 +90,52 @@ func (n *Node) handleOrderResponses() {
 			logrus.Fatalln("not prepared")
 		}
 		n.ackChsMu.RLock()
-		n.ackChs[id] <- &nodepb.Ack{LocalToken: oRsp.Lsn}
+		n.ackChs[id] <- &nodepb.Ack{
+			LocalToken:  oRsp.Lsn,
+			GlobalToken: oRsp.Gsn,
+			Color:       oRsp.Color,
+		}
 		n.ackChsMu.RUnlock()
 	}
+}
+
+func (n *Node) commit() {
+	var waitingFor uint64
+	waitingForMu := sync.Mutex{}
+
+	waitC := make(chan *nodepb.Com)
+
+	cachedCommits := sync.Map{}
+
+	go func() {
+		var wF uint64
+		for com := range n.possibleComCh {
+			waitingForMu.Lock()
+			wF = waitingFor
+			waitingForMu.Unlock()
+			if com.GlobalToken == wF {
+				waitC <- com
+				continue
+			}
+			cachedCommits.Store(com.GlobalToken, com)
+		}
+	}()
+
+	for oRsp := range n.waitingORespCh {
+		waitingForMu.Lock()
+		waitingFor = oRsp.Gsn
+		waitingForMu.Unlock()
+
+		com, ok := cachedCommits.LoadAndDelete(oRsp.Gsn)
+		var comMsg *nodepb.Com
+		if ok {
+			comMsg = com.(*nodepb.Com)
+		} else {
+			comMsg = <-waitC
+		}
+		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken); err != nil {
+			logrus.Fatalln("app failed to commit")
+		}
+	}
+
 }

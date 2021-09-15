@@ -37,8 +37,6 @@ func (n *Node) Commit(stream nodepb.Node_CommitServer) error {
 		if err != nil {
 			return fmt.Errorf("failed to receive com-msg: %v", err)
 		}
-		if err := n.app.Commit(comMsg.LocalToken); err != nil {
-			return err
-		}
+		n.possibleComCh <- comMsg
 	}
 }

@@ -18,6 +18,8 @@ message Prep {
 
 message Ack {
   uint64 localToken = 1;
+  uint32 color = 2;
+  uint64 globalToken = 3;
 }
 
 message AckReq {
@@ -26,6 +28,8 @@ message AckReq {
 
 message Com {
   uint64 localToken = 1;
+  uint32 color = 2;
+  uint64 globalToken = 3;
 }
 
 message RegisterRequest {

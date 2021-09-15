@@ -40,6 +40,9 @@ type Node struct {
 	comStreams   map[uint32]nodepb.Node_CommitClient
 	comStreamsMu sync.RWMutex
 
+	possibleComCh  chan *nodepb.Com
+	waitingORespCh chan *seqpb.OrderResponse
+
 	helpCtr uint32
 
 	orderRespCh <-chan *seqpb.OrderResponse
@@ -57,6 +60,8 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.numOfAcks = make(map[uint64]uint32)
 	node.comCh = make(chan *nodepb.Com)
 	node.comStreams = make(map[uint32]nodepb.Node_CommitClient)
+	node.possibleComCh = make(chan *nodepb.Com)
+	node.waitingORespCh = make(chan *seqpb.OrderResponse)
 	return node, nil
 }
 
@@ -79,6 +84,7 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	go n.broadcastPrepareMsgs()
 	go n.handleAppCommitRequests()
 	go n.handleOrderResponses()
+	go n.commit()
 
 	for _, peerIp := range peerIpAddrs {
 		err := n.connectToPeer(peerIp, true)

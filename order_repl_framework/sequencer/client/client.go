@@ -2,7 +2,6 @@ package client
 
 import (
 	"context"
-	"fmt"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"google.golang.org/grpc"
 )
@@ -66,6 +65,5 @@ func (c *Client) receiveORsps() {
 			return
 		}
 		c.oRspC <- rsp
-		fmt.Println(len(c.oRspC))
 	}
 }
