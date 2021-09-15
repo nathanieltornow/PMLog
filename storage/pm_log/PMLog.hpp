@@ -6,6 +6,8 @@
 #define KEY_SIZE 16
 using namespace pmem::obj;
 
+struct root;
+
 class PersistentString {
 private:
 	char array[KEY_SIZE];
@@ -21,11 +23,11 @@ using GSNmap = concurrent_hash_map<p<uint64_t>, persistent_ptr<PString>>;
 class cppPMLog {
 private:
 	persistent_ptr<LSNmap> lsnPptr;
-    persistent_ptr<GSNmap> gsnPptr;
-	pool_base pop;
+    persistent_ptr<GSNmap> gsnPptr;	
 	p<uint64_t> highest_gsn;
 public:
-    cppPMLog(pool_base);
+	p<pool<root>> pop;
+    cppPMLog(pool<root>);
     ~cppPMLog();
     void restartMaps();
     int Append(const char* record, uint64_t lsn);
@@ -35,3 +37,4 @@ public:
 };
 
 void* cppStartUp();
+void cppFinalize(persistent_ptr<cppPMLog> cppLog);
