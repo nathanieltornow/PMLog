@@ -18,7 +18,7 @@ func (h *HelloWorldApp) MakeCommitRequests(ch chan *frame.CommitRequest) error {
 	}
 }
 
-func (h *HelloWorldApp) Prepare(localToken uint64, color uint32, content string) error {
+func (h *HelloWorldApp) Prepare(localToken uint64, color uint32, content string, findToken uint64) error {
 	fmt.Println("preparing", localToken, color, content)
 	return nil
 }

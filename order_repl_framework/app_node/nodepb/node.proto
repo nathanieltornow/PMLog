@@ -1,7 +1,7 @@
 syntax = "proto3";
 package app_node;
 
-option go_package = "github.com/nathanieltornow/app_node/nodepb";
+option go_package = "github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb";
 
 service Node {
   rpc Register(RegisterRequest) returns (Empty);

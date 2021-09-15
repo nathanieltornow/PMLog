@@ -47,6 +47,9 @@ type Node struct {
 
 	orderRespCh <-chan *seqpb.OrderResponse
 	orderReqCh  chan<- *seqpb.OrderRequest
+
+	recentlyPrepared   map[uint64]chan bool
+	recentlyPreparedMu sync.RWMutex
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -62,6 +65,7 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.comStreams = make(map[uint32]nodepb.Node_CommitClient)
 	node.possibleComCh = make(chan *nodepb.Com)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse)
+	node.recentlyPrepared = make(map[uint64]chan bool)
 	return node, nil
 }
 

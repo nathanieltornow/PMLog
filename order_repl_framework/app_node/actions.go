@@ -41,17 +41,24 @@ func (n *Node) handleAppCommitRequests() {
 		}
 	}()
 	for comReq := range comReqCh {
-		prepMsg := &nodepb.Prep{
-			LocalToken: n.getNewLocalToken(),
+		newToken := n.getNewLocalToken()
+
+		waitForPrep := make(chan bool, 1)
+
+		n.recentlyPreparedMu.Lock()
+		n.recentlyPrepared[newToken] = waitForPrep
+		n.recentlyPreparedMu.Unlock()
+		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitForPrep); err != nil {
+			return
+		}
+
+		// put into channel to be broadcasted to other nodes and send orderrequest
+		n.prepCh <- &nodepb.Prep{
+			LocalToken: newToken,
 			Color:      comReq.Color,
 			Content:    comReq.Content,
 		}
-		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content); err != nil {
-			return
-		}
-		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.prepCh <- prepMsg
-		n.orderReqCh <- &seqpb.OrderRequest{Lsn: prepMsg.LocalToken, Color: prepMsg.Color, OriginColor: n.color}
+		n.orderReqCh <- &seqpb.OrderRequest{Lsn: newToken, Color: comReq.Color, OriginColor: n.color}
 	}
 }
 
@@ -66,16 +73,28 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 		if !ok {
 			n.numOfAcks[ackMsg.LocalToken] = 0
 		}
+		n.numOfAcks[ackMsg.LocalToken] += 1
+		n.numOfAcksMu.Unlock()
 		if (num + 1) == n.numOfPeers {
 			comMsg := &nodepb.Com{
 				LocalToken:  ackMsg.LocalToken,
 				Color:       ackMsg.Color,
 				GlobalToken: ackMsg.GlobalToken,
 			}
+
+			n.recentlyPreparedMu.RLock()
+			waitC := n.recentlyPrepared[ackMsg.LocalToken]
+			n.recentlyPreparedMu.RUnlock()
+			<-waitC
+
 			n.possibleComCh <- comMsg
 			n.comCh <- comMsg
+
+			n.numOfAcksMu.Lock()
+			delete(n.numOfAcks, ackMsg.LocalToken)
+			n.numOfAcksMu.Unlock()
 		}
-		n.numOfAcksMu.Unlock()
+
 	}
 }
 
@@ -86,9 +105,11 @@ func (n *Node) handleOrderResponses() {
 		if id == n.id {
 			continue
 		}
-		if !n.app.IsPrepared(oRsp.Lsn) {
-			logrus.Fatalln("not prepared")
-		}
+		n.recentlyPreparedMu.RLock()
+		waitC := n.recentlyPrepared[oRsp.Lsn]
+		n.recentlyPreparedMu.RUnlock()
+		<-waitC
+
 		n.ackChsMu.RLock()
 		n.ackChs[id] <- &nodepb.Ack{
 			LocalToken:  oRsp.Lsn,
@@ -133,7 +154,8 @@ func (n *Node) commit() {
 		} else {
 			comMsg = <-waitC
 		}
-		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken); err != nil {
+		isCoor := n.id == uint32(comMsg.LocalToken)
+		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken, isCoor); err != nil {
 			logrus.Fatalln("app failed to commit")
 		}
 	}

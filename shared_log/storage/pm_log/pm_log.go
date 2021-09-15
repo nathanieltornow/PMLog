@@ -12,7 +12,7 @@ type PMLog struct {
 func NewPMLog() (*PMLog, error) {
 	var ret PMLog
 	ret.pmLog = C.startUp()
-	
+
 	return &ret, nil
 }
 
@@ -20,11 +20,11 @@ func (log *PMLog) Append(record string, lsn uint64) error {
 	var cRecord = C.CString(record)
 	C.cAppend(log.pmLog, cRecord, C.ulong(lsn))
 	C.free(unsafe.Pointer(cRecord))
-	
+
 	return nil
 }
 
-func (log *PMLog) Commit(lsn uint64,gsn uint64) error {
+func (log *PMLog) Commit(lsn uint64, gsn uint64) error {
 	C.cCommit(log.pmLog, C.ulong(lsn), C.ulong(gsn))
 	return nil
 }
@@ -34,7 +34,7 @@ func (log *PMLog) Read(gsn uint64) (string, error) {
 	var cRecord = C.CString(ret)
 	C.cRead(log.pmLog, C.ulong(gsn), cRecord)
 	ret = C.GoString(cRecord)
-	
+
 	return ret, nil
 }
 
