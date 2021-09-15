@@ -46,7 +46,7 @@ func (n *Node) handleAppCommitRequests() {
 			Color:      comReq.Color,
 			Content:    comReq.Content,
 		}
-		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content); err != nil {
+		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content, comReq.FindToken); err != nil {
 			return
 		}
 		// put into channel to be broadcasted to other nodes and send orderrequest

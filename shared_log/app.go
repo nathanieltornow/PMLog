@@ -4,8 +4,12 @@ import (
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
 )
 
-func (sl *SharedLog) MakeCommitRequests(ch chan *frame.CommitRequest) error {
+type waitingRecord struct {
+	record string
+	gsn    chan uint64
+}
 
+func (sl *SharedLog) MakeCommitRequests(ch chan *frame.CommitRequest) error {
 	return nil
 }
 

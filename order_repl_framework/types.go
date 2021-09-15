@@ -3,7 +3,7 @@ package order_repl_framework
 type Application interface {
 	MakeCommitRequests(chan *CommitRequest) error
 
-	Prepare(localToken uint64, color uint32, content string) error
+	Prepare(localToken uint64, color uint32, content string, findToken uint64) error
 
 	IsPrepared(localToken uint64) bool
 
@@ -11,6 +11,7 @@ type Application interface {
 }
 
 type CommitRequest struct {
-	Color   uint32
-	Content string
+	Color     uint32
+	Content   string
+	FindToken uint64
 }
