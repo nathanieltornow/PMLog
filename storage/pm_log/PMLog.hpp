@@ -30,6 +30,7 @@ public:
     cppPMLog(pool<root>);
     ~cppPMLog();
     void restartMaps();
+    void shutdown();
     int Append(const char* record, uint64_t lsn);
     int Commit(uint64_t lsn, uint64_t gsn) ;
     uint64_t Read(uint64_t gsn, char* storage);
