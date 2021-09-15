@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	IP      = flag.String("IP", "", "")
+	IP      = flag.String("IP", ":9000", "")
 	peerIPs = flag.String("peers", "", "")
 	orderIP = flag.String("order", "", "")
 	id      = flag.Int("id", 0, "")

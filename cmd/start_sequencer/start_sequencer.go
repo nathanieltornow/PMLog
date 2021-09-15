@@ -7,7 +7,7 @@ import (
 )
 
 var (
-	IP     = flag.String("IP", "", "The IP on which the sequencer listens")
+	IP     = flag.String("IP", ":9000", "The IP on which the sequencer listens")
 	parIP  = flag.String("parIP", "", "The IP of the parent-sequencer")
 	root   = flag.Bool("root", false, "If the sequencer is the root-sequencer")
 	leader = flag.Bool("leader", false, "If the sequencer is a leader and can therefore reply to requests")
