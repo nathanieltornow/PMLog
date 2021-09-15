@@ -133,7 +133,8 @@ func (n *Node) commit() {
 		} else {
 			comMsg = <-waitC
 		}
-		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken); err != nil {
+		isCoor := n.id == uint32(comMsg.LocalToken)
+		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken, isCoor); err != nil {
 			logrus.Fatalln("app failed to commit")
 		}
 	}

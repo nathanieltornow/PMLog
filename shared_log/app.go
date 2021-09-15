@@ -2,6 +2,7 @@ package shared_log
 
 import (
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
+	"github.com/sirupsen/logrus"
 )
 
 type newRecord struct {
@@ -38,15 +39,26 @@ func (sl *SharedLog) IsPrepared(localToken uint64) bool {
 	return true
 }
 
-func (sl *SharedLog) Commit(localToken uint64, color uint32, globalToken uint64) error {
+func (sl *SharedLog) Commit(localToken uint64, color uint32, globalToken uint64, isCoordinator bool) error {
 	// TODO color
 	if err := sl.log.Commit(localToken, globalToken); err != nil {
 		return err
 	}
 
-	sl.pendingAppendsMu.Lock()
-	sl.pendingAppends[localToken] <- globalToken
-	delete(sl.pendingAppends, localToken)
-	sl.pendingAppendsMu.Unlock()
+	if isCoordinator {
+		sl.localToFindTokenMu.Lock()
+		findToken, ok := sl.localToFindToken[localToken]
+		sl.localToFindTokenMu.Unlock()
+
+		if !ok {
+			logrus.Fatalln("Failed to find token")
+		}
+
+		sl.pendingAppendsMu.Lock()
+		sl.pendingAppends[findToken] <- globalToken
+		delete(sl.pendingAppends, localToken)
+		sl.pendingAppendsMu.Unlock()
+	}
+
 	return nil
 }
