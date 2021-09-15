@@ -11,9 +11,17 @@ func (n *Node) Prepare(stream nodepb.Node_PrepareServer) error {
 		if err != nil {
 			return fmt.Errorf("failed to receive prep-msg: %v", err)
 		}
-		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content, 0); err != nil {
+
+		waitForPrep := make(chan bool)
+
+		n.recentlyPreparedMu.Lock()
+		n.recentlyPrepared[prepMsg.LocalToken] = waitForPrep
+		n.recentlyPreparedMu.Unlock()
+
+		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content, 0, waitForPrep); err != nil {
 			return err
 		}
+
 	}
 }
 

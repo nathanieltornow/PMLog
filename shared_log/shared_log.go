@@ -52,7 +52,7 @@ func (sl *SharedLog) Start(ipAddr string) error {
 
 func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
 	newToken := atomic.AddUint64(&sl.tokenCtr, 1)
-	waitingGsn := make(chan uint64)
+	waitingGsn := make(chan uint64, 1)
 	sl.pendingAppendsMu.Lock()
 	sl.pendingAppends[newToken] = waitingGsn
 	sl.pendingAppendsMu.Unlock()

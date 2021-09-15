@@ -2,7 +2,6 @@ package mem_log
 
 import (
 	"fmt"
-	"time"
 )
 
 type MemLog struct {
@@ -13,12 +12,12 @@ func NewMemLog() (*MemLog, error) {
 }
 
 func (log *MemLog) Append(record string, lsn uint64) error {
-	fmt.Println("Appending", record, lsn, time.Now().Nanosecond())
+	fmt.Println("Appending", record, lsn)
 	return nil
 }
 
 func (log *MemLog) Commit(lsn uint64, gsn uint64) error {
-	fmt.Println("Committing", lsn, time.Now().Nanosecond())
+	fmt.Println("Committing", gsn)
 	return nil
 }
 

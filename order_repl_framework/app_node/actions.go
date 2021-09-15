@@ -43,11 +43,16 @@ func (n *Node) handleAppCommitRequests() {
 	for comReq := range comReqCh {
 		newToken := n.getNewLocalToken()
 
-		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken); err != nil {
+		waitForPrep := make(chan bool, 1)
+
+		n.recentlyPreparedMu.Lock()
+		n.recentlyPrepared[newToken] = waitForPrep
+		n.recentlyPreparedMu.Unlock()
+		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitForPrep); err != nil {
 			return
 		}
-		// put into channel to be broadcasted to other nodes and send orderrequest
 
+		// put into channel to be broadcasted to other nodes and send orderrequest
 		n.prepCh <- &nodepb.Prep{
 			LocalToken: newToken,
 			Color:      comReq.Color,
@@ -76,6 +81,12 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 				Color:       ackMsg.Color,
 				GlobalToken: ackMsg.GlobalToken,
 			}
+
+			n.recentlyPreparedMu.RLock()
+			waitC := n.recentlyPrepared[ackMsg.LocalToken]
+			n.recentlyPreparedMu.RUnlock()
+			<-waitC
+
 			n.possibleComCh <- comMsg
 			n.comCh <- comMsg
 
@@ -94,9 +105,11 @@ func (n *Node) handleOrderResponses() {
 		if id == n.id {
 			continue
 		}
-		if !n.app.IsPrepared(oRsp.Lsn) {
-			logrus.Fatalln("not prepared")
-		}
+		n.recentlyPreparedMu.RLock()
+		waitC := n.recentlyPrepared[oRsp.Lsn]
+		n.recentlyPreparedMu.RUnlock()
+		<-waitC
+
 		n.ackChsMu.RLock()
 		n.ackChs[id] <- &nodepb.Ack{
 			LocalToken:  oRsp.Lsn,
