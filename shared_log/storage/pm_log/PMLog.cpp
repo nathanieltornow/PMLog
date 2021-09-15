@@ -66,15 +66,21 @@ void *cppStartUp() {
 	return (void *) (r->pmLog.get());
 }
 
+void cppPMLog::shutdown() {
+	this->lsnPptr->defragment();
+	this->gsnPptr->defragment();
+}
+
 void cppFinalize(persistent_ptr<cppPMLog> cppLog) {
 	pool<root> pop = cppLog->pop.get_rw();
-	
+	cppLog->shutdown();
 	
 	pmem::obj::transaction::run(pop, [&] {
 		delete_persistent<cppPMLog>(cppLog);
 		pop.root()->pmLog = nullptr;		
 	});
 	
+
 	pop.close();	
 }
 
@@ -96,6 +102,8 @@ cppPMLog::cppPMLog(pool<root> pop) {
 
 cppPMLog::~cppPMLog() {
 	try {
+		this->lsnPptr->clear();
+		this->gsnPptr->clear();
 		pmem::obj::transaction::run(this->pop.get_rw(), [&] {
 			delete_persistent<LSNmap>(this->lsnPptr);
 			delete_persistent<GSNmap>(this->gsnPptr);
@@ -180,7 +188,6 @@ uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
 		if (gsnPptr->find(acc, gsn))
 			strcpy(storage, acc->second->data());
 			
-		uint64_t next_gsn = gsn + 1;
 		while (!(gsnPptr->find(acc, next_gsn))) {
 			if (next_gsn > this->highest_gsn)
 				return 0;
