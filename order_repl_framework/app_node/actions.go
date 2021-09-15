@@ -41,17 +41,19 @@ func (n *Node) handleAppCommitRequests() {
 		}
 	}()
 	for comReq := range comReqCh {
-		prepMsg := &nodepb.Prep{
-			LocalToken: n.getNewLocalToken(),
-			Color:      comReq.Color,
-			Content:    comReq.Content,
-		}
-		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content); err != nil {
+		newToken := n.getNewLocalToken()
+
+		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken); err != nil {
 			return
 		}
 		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.prepCh <- prepMsg
-		n.orderReqCh <- &seqpb.OrderRequest{Lsn: prepMsg.LocalToken, Color: prepMsg.Color, OriginColor: n.color}
+
+		n.prepCh <- &nodepb.Prep{
+			LocalToken: newToken,
+			Color:      comReq.Color,
+			Content:    comReq.Content,
+		}
+		n.orderReqCh <- &seqpb.OrderRequest{Lsn: newToken, Color: comReq.Color, OriginColor: n.color}
 	}
 }
 
@@ -133,7 +135,8 @@ func (n *Node) commit() {
 		} else {
 			comMsg = <-waitC
 		}
-		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken); err != nil {
+		isCoor := n.id == uint32(comMsg.LocalToken)
+		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken, isCoor); err != nil {
 			logrus.Fatalln("app failed to commit")
 		}
 	}
