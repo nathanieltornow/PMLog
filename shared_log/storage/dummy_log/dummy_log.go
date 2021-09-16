@@ -7,7 +7,7 @@ import (
 type DummyLog struct {
 }
 
-func NewMemLog() (*DummyLog, error) {
+func NewDummyLog() (*DummyLog, error) {
 	return &DummyLog{}, nil
 }
 

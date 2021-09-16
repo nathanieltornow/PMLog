@@ -4,7 +4,7 @@ import (
 	"flag"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node"
 	"github.com/nathanieltornow/PMLog/shared_log"
-	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log"
+	"github.com/nathanieltornow/PMLog/shared_log/storage/dummy_log"
 	"github.com/sirupsen/logrus"
 	"strings"
 )
@@ -20,7 +20,7 @@ var (
 func main() {
 	flag.Parse()
 
-	log, err := mem_log.NewMemLog()
+	log, err := dummy_log.NewDummyLog()
 	if err != nil {
 		logrus.Fatalln(err)
 	}

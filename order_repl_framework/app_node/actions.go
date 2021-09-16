@@ -41,17 +41,30 @@ func (n *Node) handleAppCommitRequests() {
 		}
 	}()
 	for comReq := range comReqCh {
+		n.numOfAcksMu.Lock()
+		single := n.numOfPeers == 0
+		n.numOfAcksMu.Unlock()
+
 		newToken := n.getNewLocalToken()
 
 		waitForPrep := make(chan bool, 1)
 
-		n.recentlyPreparedMu.Lock()
-		n.recentlyPrepared[newToken] = waitForPrep
-		n.recentlyPreparedMu.Unlock()
 		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitForPrep); err != nil {
 			return
 		}
 
+		// if the node is the only one in the shard, commit and get next request
+		if single {
+			<-waitForPrep
+			if err := n.app.Commit(newToken, comReq.Color, newToken, true); err != nil {
+				logrus.Fatalln("failed to commit")
+			}
+			continue
+		}
+
+		n.recentlyPreparedMu.Lock()
+		n.recentlyPrepared[newToken] = waitForPrep
+		n.recentlyPreparedMu.Unlock()
 		// put into channel to be broadcasted to other nodes and send orderrequest
 		n.prepCh <- &nodepb.Prep{
 			LocalToken: newToken,
