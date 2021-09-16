@@ -5,7 +5,7 @@ import (
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	seqpb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
-	"sync"
+	"sync/atomic"
 )
 
 func (n *Node) broadcastPrepareMsgs() {
@@ -40,31 +40,33 @@ func (n *Node) handleAppCommitRequests() {
 			return
 		}
 	}()
+
 	for comReq := range comReqCh {
-		n.numOfAcksMu.Lock()
-		single := n.numOfPeers == 0
-		n.numOfAcksMu.Unlock()
+
+		single := atomic.LoadUint32(&n.numOfPeers) == 0
 
 		newToken := n.getNewLocalToken()
 
-		waitForPrep := make(chan bool, 1)
+		n.recentlyPreparedMu.Lock()
+		waitC, ok := n.recentlyPrepared[newToken]
+		if !ok {
+			waitC = make(chan bool, 1)
+			n.recentlyPrepared[newToken] = waitC
+		}
+		n.recentlyPreparedMu.Unlock()
 
-		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitForPrep); err != nil {
+		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitC); err != nil {
 			return
 		}
 
-		// if the node is the only one in the shard, commit and get next request
 		if single {
-			<-waitForPrep
+			<-waitC
 			if err := n.app.Commit(newToken, comReq.Color, newToken, true); err != nil {
 				logrus.Fatalln("failed to commit")
 			}
 			continue
 		}
 
-		n.recentlyPreparedMu.Lock()
-		n.recentlyPrepared[newToken] = waitForPrep
-		n.recentlyPreparedMu.Unlock()
 		// put into channel to be broadcasted to other nodes and send orderrequest
 		n.prepCh <- &nodepb.Prep{
 			LocalToken: newToken,
@@ -88,16 +90,20 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 		}
 		n.numOfAcks[ackMsg.LocalToken] += 1
 		n.numOfAcksMu.Unlock()
-		if (num + 1) == n.numOfPeers {
+
+		if (num + 1) == atomic.LoadUint32(&n.numOfPeers) {
 			comMsg := &nodepb.Com{
 				LocalToken:  ackMsg.LocalToken,
 				Color:       ackMsg.Color,
 				GlobalToken: ackMsg.GlobalToken,
 			}
 
-			n.recentlyPreparedMu.RLock()
-			waitC := n.recentlyPrepared[ackMsg.LocalToken]
-			n.recentlyPreparedMu.RUnlock()
+			n.recentlyPreparedMu.Lock()
+			waitC, ok := n.recentlyPrepared[ackMsg.LocalToken]
+			if !ok {
+				logrus.Fatalln("Failed to find waitC")
+			}
+			n.recentlyPreparedMu.Unlock()
 			<-waitC
 
 			n.possibleComCh <- comMsg
@@ -118,9 +124,14 @@ func (n *Node) handleOrderResponses() {
 		if id == n.id {
 			continue
 		}
-		n.recentlyPreparedMu.RLock()
-		waitC := n.recentlyPrepared[oRsp.Lsn]
-		n.recentlyPreparedMu.RUnlock()
+
+		n.recentlyPreparedMu.Lock()
+		waitC, ok := n.recentlyPrepared[oRsp.Lsn]
+		if !ok {
+			waitC = make(chan bool, 1)
+			n.recentlyPrepared[oRsp.Lsn] = waitC
+		}
+		n.recentlyPreparedMu.Unlock()
 		<-waitC
 
 		n.ackChsMu.RLock()
@@ -134,41 +145,24 @@ func (n *Node) handleOrderResponses() {
 }
 
 func (n *Node) commit() {
-	var waitingFor uint64
-	waitingForMu := sync.Mutex{}
 
-	waitC := make(chan *nodepb.Com)
-
-	cachedCommits := sync.Map{}
-
-	go func() {
-		var wF uint64
-		for com := range n.possibleComCh {
-			waitingForMu.Lock()
-			wF = waitingFor
-			waitingForMu.Unlock()
-			if com.GlobalToken == wF {
-				waitC <- com
-				continue
-			}
-			cachedCommits.Store(com.GlobalToken, com)
-		}
-	}()
+	cachedCommits := make(map[uint64]*nodepb.Com)
 
 	for oRsp := range n.waitingORespCh {
-		waitingForMu.Lock()
-		waitingFor = oRsp.Gsn
-		waitingForMu.Unlock()
 
-		com, ok := cachedCommits.LoadAndDelete(oRsp.Gsn)
-		var comMsg *nodepb.Com
-		if ok {
-			comMsg = com.(*nodepb.Com)
-		} else {
-			comMsg = <-waitC
+		com, ok := cachedCommits[oRsp.Gsn]
+		if !ok {
+			for comMsg := range n.possibleComCh {
+				if comMsg.GlobalToken == oRsp.Gsn {
+					com = comMsg
+					break
+				}
+				cachedCommits[comMsg.GlobalToken] = comMsg
+			}
 		}
-		isCoor := n.id == uint32(comMsg.LocalToken)
-		if err := n.app.Commit(comMsg.LocalToken, comMsg.Color, comMsg.GlobalToken, isCoor); err != nil {
+
+		isCoor := n.id == uint32(com.LocalToken)
+		if err := n.app.Commit(com.LocalToken, com.Color, com.GlobalToken, isCoor); err != nil {
 			logrus.Fatalln("app failed to commit")
 		}
 	}

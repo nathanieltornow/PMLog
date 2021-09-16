@@ -3,6 +3,7 @@ package app_node
 import (
 	"fmt"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
+	"sync/atomic"
 )
 
 func (n *Node) Prepare(stream nodepb.Node_PrepareServer) error {
@@ -12,13 +13,15 @@ func (n *Node) Prepare(stream nodepb.Node_PrepareServer) error {
 			return fmt.Errorf("failed to receive prep-msg: %v", err)
 		}
 
-		waitForPrep := make(chan bool)
-
 		n.recentlyPreparedMu.Lock()
-		n.recentlyPrepared[prepMsg.LocalToken] = waitForPrep
+		waitC, ok := n.recentlyPrepared[prepMsg.LocalToken]
+		if !ok {
+			waitC = make(chan bool, 1)
+			n.recentlyPrepared[prepMsg.LocalToken] = waitC
+		}
 		n.recentlyPreparedMu.Unlock()
 
-		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content, 0, waitForPrep); err != nil {
+		if err := n.app.Prepare(prepMsg.LocalToken, prepMsg.Color, prepMsg.Content, 0, waitC); err != nil {
 			return err
 		}
 
@@ -27,10 +30,13 @@ func (n *Node) Prepare(stream nodepb.Node_PrepareServer) error {
 
 func (n *Node) GetAcks(req *nodepb.AckReq, stream nodepb.Node_GetAcksServer) error {
 	ackCh := make(chan *nodepb.Ack, 512)
+
 	n.ackChsMu.Lock()
 	n.ackChs[req.NodeID] = ackCh
-	n.numOfPeers++
 	n.ackChsMu.Unlock()
+
+	atomic.AddUint32(&n.numOfPeers, 1)
+
 	for ack := range ackCh {
 		if err := stream.Send(ack); err != nil {
 			return err

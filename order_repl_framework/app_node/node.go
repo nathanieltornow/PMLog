@@ -25,7 +25,8 @@ type Node struct {
 
 	ctr uint32
 
-	numOfPeers  uint32
+	numOfPeers uint32
+
 	numOfAcks   map[uint64]uint32
 	numOfAcksMu sync.Mutex
 
@@ -49,7 +50,7 @@ type Node struct {
 	orderReqCh  chan<- *seqpb.OrderRequest
 
 	recentlyPrepared   map[uint64]chan bool
-	recentlyPreparedMu sync.RWMutex
+	recentlyPreparedMu sync.Mutex
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -100,6 +101,13 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	return err
 }
 
+func (n *Node) Register(_ context.Context, req *nodepb.RegisterRequest) (*nodepb.Empty, error) {
+	if err := n.connectToPeer(req.IP, false); err != nil {
+		return nil, err
+	}
+	return &nodepb.Empty{}, nil
+}
+
 func (n *Node) startGRPCSever() error {
 	lis, err := net.Listen("tcp", n.ipAddr)
 	if err != nil {
@@ -113,13 +121,6 @@ func (n *Node) startGRPCSever() error {
 		return fmt.Errorf("failed to start node: %v", err)
 	}
 	return nil
-}
-
-func (n *Node) Register(_ context.Context, req *nodepb.RegisterRequest) (*nodepb.Empty, error) {
-	if err := n.connectToPeer(req.IP, false); err != nil {
-		return nil, err
-	}
-	return &nodepb.Empty{}, nil
 }
 
 func (n *Node) connectToPeer(peerIP string, back bool) error {

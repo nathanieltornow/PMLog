@@ -1,9 +1,5 @@
 package dummy_log
 
-import (
-	"time"
-)
-
 type DummyLog struct {
 }
 
@@ -12,12 +8,10 @@ func NewDummyLog() (*DummyLog, error) {
 }
 
 func (log *DummyLog) Append(record string, lsn uint64) error {
-	time.Sleep(200 * time.Microsecond)
 	return nil
 }
 
 func (log *DummyLog) Commit(lsn uint64, gsn uint64) error {
-	time.Sleep(100 * time.Microsecond)
 	return nil
 }
 

@@ -20,12 +20,14 @@ func main() {
 		logrus.Fatalln(err)
 	}
 
-	for i := 0; i < 10; i++ {
-		time.Sleep(3 * time.Second)
+	for i := 0; i < 400; i++ {
+		fmt.Println(i)
+		now := time.Now()
 		resp, err := logClient.Append(0, "Hello")
+		end := time.Since(now)
 		if err != nil {
 			logrus.Fatalln(err)
 		}
-		fmt.Println(resp)
+		fmt.Println(resp, end)
 	}
 }
