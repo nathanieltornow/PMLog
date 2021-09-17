@@ -1,6 +1,7 @@
 package dummy_log
 
 import (
+	"fmt"
 	"time"
 )
 
@@ -12,11 +13,13 @@ func NewDummyLog() (*DummyLog, error) {
 }
 
 func (log *DummyLog) Append(record string, lsn uint64) error {
+	fmt.Println("append", lsn)
 	time.Sleep(time.Microsecond * 20)
 	return nil
 }
 
 func (log *DummyLog) Commit(lsn uint64, gsn uint64) error {
+	fmt.Println("commit", lsn, gsn)
 	time.Sleep(time.Microsecond * 10)
 	return nil
 }
