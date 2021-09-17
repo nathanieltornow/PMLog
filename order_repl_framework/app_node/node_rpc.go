@@ -36,7 +36,6 @@ func (n *Node) GetAcks(req *nodepb.AckReq, stream nodepb.Node_GetAcksServer) err
 func (n *Node) Commit(stream nodepb.Node_CommitServer) error {
 	for {
 		comMsg, err := stream.Recv()
-		fmt.Println("recv com", comMsg)
 		if err != nil {
 			return fmt.Errorf("failed to receive com-msg: %v", err)
 		}
