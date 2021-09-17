@@ -24,7 +24,7 @@ func (sl *SharedLog) MakeCommitRequests(ch chan *frame.CommitRequest) error {
 	return nil
 }
 
-func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string, findToken uint64, finished chan bool) error {
+func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string, findToken uint64) error {
 	// TODO Color
 	if err := sl.log.Append(content, localToken); err != nil {
 		return err
@@ -32,7 +32,6 @@ func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string, fi
 	sl.localToFindTokenMu.Lock()
 	sl.localToFindToken[localToken] = findToken
 	sl.localToFindTokenMu.Unlock()
-	finished <- true
 	return nil
 }
 

@@ -20,8 +20,7 @@ func main() {
 		logrus.Fatalln(err)
 	}
 
-	for i := 0; i < 400; i++ {
-		fmt.Println(i)
+	for i := 0; i < 20; i++ {
 		now := time.Now()
 		resp, err := logClient.Append(0, "Hello")
 		end := time.Since(now)

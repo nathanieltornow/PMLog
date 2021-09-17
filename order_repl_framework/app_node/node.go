@@ -19,21 +19,14 @@ type Node struct {
 
 	app frame.Application
 
-	id     uint32
-	color  uint32
-	ipAddr string
-
-	ctr uint32
-
-	numOfPeers uint32
-
-	numOfAcks   map[uint64]uint32
-	numOfAcksMu sync.Mutex
+	id      uint32
+	color   uint32
+	ipAddr  string
+	ctr     uint32
+	helpCtr uint32
 
 	ackChs   map[uint32]chan *nodepb.Ack
 	ackChsMu sync.RWMutex
-
-	localPrepCh chan *nodepb.Prep
 
 	prepCh        chan *nodepb.Prep
 	prepStreams   map[uint32]nodepb.Node_PrepareClient
@@ -43,16 +36,13 @@ type Node struct {
 	comStreams   map[uint32]nodepb.Node_CommitClient
 	comStreamsMu sync.RWMutex
 
-	possibleComCh  chan *nodepb.Com
 	waitingORespCh chan *seqpb.OrderResponse
-
-	helpCtr uint32
 
 	orderRespCh <-chan *seqpb.OrderResponse
 	orderReqCh  chan<- *seqpb.OrderRequest
 
-	recentlyPrepared   map[uint64]chan bool
-	recentlyPreparedMu sync.Mutex
+	prepMan *prepManager
+	comMan  *comManager
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -63,13 +53,11 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.ackChs = make(map[uint32]chan *nodepb.Ack)
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.prepCh = make(chan *nodepb.Prep, 1024)
-	node.numOfAcks = make(map[uint64]uint32)
-	node.comCh = make(chan *nodepb.Com)
+	node.comCh = make(chan *nodepb.Com, 1024)
 	node.comStreams = make(map[uint32]nodepb.Node_CommitClient)
-	node.possibleComCh = make(chan *nodepb.Com)
-	node.waitingORespCh = make(chan *seqpb.OrderResponse)
-	node.recentlyPrepared = make(map[uint64]chan bool)
-	node.localPrepCh = make(chan *nodepb.Prep, 1024)
+	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
+	node.prepMan = newPrepManager(app)
+	node.comMan = newComManager(app)
 	return node, nil
 }
 
@@ -82,7 +70,7 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	n.orderReqCh = orderClient.MakeOrderRequests()
 	n.orderRespCh = orderClient.GetOrderResponses()
 
-	errC := make(chan error)
+	errC := make(chan error, 1)
 	go func() {
 		err := n.startGRPCSever()
 		errC <- err

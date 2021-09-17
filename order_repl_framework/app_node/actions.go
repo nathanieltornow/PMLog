@@ -5,7 +5,6 @@ import (
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	seqpb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
-	"sync/atomic"
 )
 
 func (n *Node) broadcastPrepareMsgs() {
@@ -43,36 +42,18 @@ func (n *Node) handleAppCommitRequests() {
 
 	for comReq := range comReqCh {
 
-		single := atomic.LoadUint32(&n.numOfPeers) == 0
-
 		newToken := n.getNewLocalToken()
 
-		n.recentlyPreparedMu.Lock()
-		waitC, ok := n.recentlyPrepared[newToken]
-		if !ok {
-			waitC = make(chan bool, 1)
-			n.recentlyPrepared[newToken] = waitC
-		}
-		n.recentlyPreparedMu.Unlock()
-
-		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitC); err != nil {
-			logrus.Fatalln("failed to prepare")
-		}
-
-		if single {
-			<-waitC
-			if err := n.app.Commit(newToken, comReq.Color, newToken, true); err != nil {
-				logrus.Fatalln("failed to commit")
-			}
-			continue
-		}
-
-		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.prepCh <- &nodepb.Prep{
+		prepMsg := &nodepb.Prep{
 			LocalToken: newToken,
 			Color:      comReq.Color,
 			Content:    comReq.Content,
 		}
+
+		n.prepMan.prepare(prepMsg, comReq.FindToken)
+
+		// put into channel to be broadcasted to other nodes and send orderrequest
+		n.prepCh <- prepMsg
 		n.orderReqCh <- &seqpb.OrderRequest{Lsn: newToken, Color: comReq.Color, OriginColor: n.color}
 	}
 }
@@ -83,57 +64,20 @@ func (n *Node) receiveAcks(stream nodepb.Node_GetAcksClient) {
 		if err != nil {
 			logrus.Fatalln("failed to receive ack")
 		}
-		n.numOfAcksMu.Lock()
-		num, ok := n.numOfAcks[ackMsg.LocalToken]
-		if !ok {
-			n.numOfAcks[ackMsg.LocalToken] = 0
-		}
-		n.numOfAcks[ackMsg.LocalToken] += 1
-		n.numOfAcksMu.Unlock()
-
-		if (num + 1) == atomic.LoadUint32(&n.numOfPeers) {
-			comMsg := &nodepb.Com{
-				LocalToken:  ackMsg.LocalToken,
-				Color:       ackMsg.Color,
-				GlobalToken: ackMsg.GlobalToken,
-			}
-
-			n.recentlyPreparedMu.Lock()
-			waitC, ok := n.recentlyPrepared[ackMsg.LocalToken]
-			if !ok {
-				logrus.Fatalln("Failed to find waitC")
-			}
-			n.recentlyPreparedMu.Unlock()
-			<-waitC
-
-			n.possibleComCh <- comMsg
-			n.comCh <- comMsg
-
-			n.numOfAcksMu.Lock()
-			delete(n.numOfAcks, ackMsg.LocalToken)
-			n.numOfAcksMu.Unlock()
-		}
-
+		n.comMan.receiveAck(ackMsg)
 	}
 }
 
 func (n *Node) handleOrderResponses() {
 	for oRsp := range n.orderRespCh {
 		n.waitingORespCh <- oRsp
+
 		id := uint32(oRsp.Lsn)
 		if id == n.id {
 			continue
 		}
 
-		n.recentlyPreparedMu.Lock()
-		waitC, ok := n.recentlyPrepared[oRsp.Lsn]
-		if !ok {
-			waitC = make(chan bool, 1)
-			n.recentlyPrepared[oRsp.Lsn] = waitC
-		}
-		n.recentlyPreparedMu.Unlock()
-
-		<-waitC
+		n.prepMan.waitForPrep(oRsp.Lsn)
 
 		n.ackChsMu.RLock()
 		n.ackChs[id] <- &nodepb.Ack{
@@ -146,30 +90,11 @@ func (n *Node) handleOrderResponses() {
 }
 
 func (n *Node) commit() {
-
-	cachedCommits := make(map[uint64]*nodepb.Com)
-
 	for oRsp := range n.waitingORespCh {
+		n.comMan.waitForCom(oRsp.Lsn)
 
-		com, ok := cachedCommits[oRsp.Gsn]
-		if !ok {
-			for comMsg := range n.possibleComCh {
-				if comMsg.GlobalToken == oRsp.Gsn {
-					com = comMsg
-					break
-				}
-				cachedCommits[comMsg.GlobalToken] = comMsg
-			}
-		}
-
-		isCoor := n.id == uint32(com.LocalToken)
-		if err := n.app.Commit(com.LocalToken, com.Color, com.GlobalToken, isCoor); err != nil {
-			logrus.Fatalln("app failed to commit")
+		if uint32(oRsp.Lsn) == n.id {
+			n.comCh <- &nodepb.Com{LocalToken: oRsp.Lsn, Color: oRsp.Color, GlobalToken: oRsp.Gsn}
 		}
 	}
-
-}
-
-func (n *Node) prepare() {
-
 }
