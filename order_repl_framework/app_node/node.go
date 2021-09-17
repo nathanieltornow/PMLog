@@ -33,6 +33,8 @@ type Node struct {
 	ackChs   map[uint32]chan *nodepb.Ack
 	ackChsMu sync.RWMutex
 
+	localPrepCh chan *nodepb.Prep
+
 	prepCh        chan *nodepb.Prep
 	prepStreams   map[uint32]nodepb.Node_PrepareClient
 	prepStreamsMu sync.RWMutex
@@ -67,6 +69,7 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.possibleComCh = make(chan *nodepb.Com)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse)
 	node.recentlyPrepared = make(map[uint64]chan bool)
+	node.localPrepCh = make(chan *nodepb.Prep, 1024)
 	return node, nil
 }
 

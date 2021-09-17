@@ -56,7 +56,7 @@ func (n *Node) handleAppCommitRequests() {
 		n.recentlyPreparedMu.Unlock()
 
 		if err := n.app.Prepare(newToken, comReq.Color, comReq.Content, comReq.FindToken, waitC); err != nil {
-			return
+			logrus.Fatalln("failed to prepare")
 		}
 
 		if single {
@@ -132,6 +132,7 @@ func (n *Node) handleOrderResponses() {
 			n.recentlyPrepared[oRsp.Lsn] = waitC
 		}
 		n.recentlyPreparedMu.Unlock()
+
 		<-waitC
 
 		n.ackChsMu.RLock()
@@ -166,5 +167,9 @@ func (n *Node) commit() {
 			logrus.Fatalln("app failed to commit")
 		}
 	}
+
+}
+
+func (n *Node) prepare() {
 
 }

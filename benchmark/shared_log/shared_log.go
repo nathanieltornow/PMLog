@@ -80,7 +80,7 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 	}()
 
 	ticker := time.Tick(interval)
-	<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	//<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	stop := time.After(runtime)
 
 	for {
