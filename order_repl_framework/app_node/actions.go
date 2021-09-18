@@ -7,16 +7,14 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-func (n *Node) broadcastPrepareMsgs() {
-	for prepMsg := range n.prepCh {
-		n.prepStreamsMu.RLock()
-		for _, stream := range n.prepStreams {
-			if err := stream.Send(prepMsg); err != nil {
-				logrus.Fatalf("failed to send prepmsg: %v", err)
-			}
+func (n *Node) broadcastPrepareMsgs(batchedPrep *nodepb.BatchedPrep) {
+	n.prepStreamsMu.RLock()
+	for _, stream := range n.prepStreams {
+		if err := stream.Send(batchedPrep); err != nil {
+			logrus.Fatalf("failed to send prepmsg: %v", err)
 		}
-		n.prepStreamsMu.RUnlock()
 	}
+	n.prepStreamsMu.RUnlock()
 }
 
 func (n *Node) handleAppCommitRequests() {
@@ -37,8 +35,8 @@ func (n *Node) handleAppCommitRequests() {
 			Content:    comReq.Content,
 		}
 
+		n.prepB.add(prepMsg)
 		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.prepCh <- prepMsg
 		n.orderReqCh <- &seqpb.OrderRequest{Lsn: newToken, Color: comReq.Color, OriginColor: n.color}
 
 		n.prepMan.prepare(prepMsg, comReq.FindToken)

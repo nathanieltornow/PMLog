@@ -12,6 +12,12 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+const (
+	maxMsgSize    = 128
+	batchInterval = 10 * time.Microsecond
 )
 
 type Node struct {
@@ -25,7 +31,10 @@ type Node struct {
 	ctr     uint32
 	helpCtr uint32
 
-	prepCh        chan *nodepb.Prep
+	maxMsgSize int
+
+	batchInterval time.Duration
+
 	prepStreams   map[uint32]nodepb.Node_PrepareClient
 	prepStreamsMu sync.RWMutex
 
@@ -35,6 +44,8 @@ type Node struct {
 	orderReqCh  chan<- *seqpb.OrderRequest
 
 	prepMan *prepManager
+
+	prepB *prepBatch
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -43,9 +54,9 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.id = id
 	node.color = color
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
-	node.prepCh = make(chan *nodepb.Prep, 1024)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
-	node.prepMan = newPrepManager(app)
+	node.maxMsgSize = maxMsgSize
+	node.batchInterval = batchInterval
 	return node, nil
 }
 
@@ -64,7 +75,9 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 		errC <- err
 	}()
 
-	go n.broadcastPrepareMsgs()
+	n.prepMan = newPrepManager(n.app)
+	n.prepB = newPrepBatch(n.broadcastPrepareMsgs, n.maxMsgSize, n.batchInterval)
+
 	go n.handleAppCommitRequests()
 	go n.handleOrderResponses()
 

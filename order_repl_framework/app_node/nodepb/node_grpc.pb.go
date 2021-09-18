@@ -49,7 +49,7 @@ func (c *nodeClient) Prepare(ctx context.Context, opts ...grpc.CallOption) (Node
 }
 
 type Node_PrepareClient interface {
-	Send(*Prep) error
+	Send(*BatchedPrep) error
 	CloseAndRecv() (*Empty, error)
 	grpc.ClientStream
 }
@@ -58,7 +58,7 @@ type nodePrepareClient struct {
 	grpc.ClientStream
 }
 
-func (x *nodePrepareClient) Send(m *Prep) error {
+func (x *nodePrepareClient) Send(m *BatchedPrep) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -129,7 +129,7 @@ func _Node_Prepare_Handler(srv interface{}, stream grpc.ServerStream) error {
 
 type Node_PrepareServer interface {
 	SendAndClose(*Empty) error
-	Recv() (*Prep, error)
+	Recv() (*BatchedPrep, error)
 	grpc.ServerStream
 }
 
@@ -141,8 +141,8 @@ func (x *nodePrepareServer) SendAndClose(m *Empty) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *nodePrepareServer) Recv() (*Prep, error) {
-	m := new(Prep)
+func (x *nodePrepareServer) Recv() (*BatchedPrep, error) {
+	m := new(BatchedPrep)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
