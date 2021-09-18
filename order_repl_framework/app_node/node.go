@@ -16,8 +16,8 @@ import (
 )
 
 const (
-	maxMsgSize    = 128
-	batchInterval = 10 * time.Microsecond
+	maxPrepMsgSize    = 128
+	prepBatchInterval = 10 * time.Microsecond
 )
 
 type Node struct {
@@ -48,15 +48,18 @@ type Node struct {
 	prepB *prepBatch
 }
 
-func NewNode(id, color uint32, app frame.Application) (*Node, error) {
+func NewNode(id, color uint32, app frame.Application, options ...NodeOption) (*Node, error) {
 	node := new(Node)
 	node.app = app
 	node.id = id
 	node.color = color
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
-	node.maxMsgSize = maxMsgSize
-	node.batchInterval = batchInterval
+	node.maxMsgSize = maxPrepMsgSize
+	node.batchInterval = prepBatchInterval
+	for _, o := range options {
+		o(node)
+	}
 	return node, nil
 }
 
@@ -89,13 +92,6 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	}
 	err = <-errC
 	return err
-}
-
-func (n *Node) Register(_ context.Context, req *nodepb.RegisterRequest) (*nodepb.Empty, error) {
-	if err := n.connectToPeer(req.IP, false); err != nil {
-		return nil, err
-	}
-	return &nodepb.Empty{}, nil
 }
 
 func (n *Node) startGRPCSever() error {
