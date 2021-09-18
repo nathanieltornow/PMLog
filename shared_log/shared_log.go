@@ -56,9 +56,7 @@ func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.Appen
 	sl.pendingAppendsMu.Lock()
 	sl.pendingAppends[newToken] = waitingGsn
 	sl.pendingAppendsMu.Unlock()
-
 	sl.newAppends <- &newRecord{findToken: newToken, color: req.Color, gsn: waitingGsn, record: req.Record}
-
 	// wait for the global-sequence number
 	gsn := <-waitingGsn
 	return &pb.AppendResponse{Gsn: gsn}, nil

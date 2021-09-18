@@ -25,16 +25,9 @@ type Node struct {
 	ctr     uint32
 	helpCtr uint32
 
-	ackChs   map[uint32]chan *nodepb.Ack
-	ackChsMu sync.RWMutex
-
 	prepCh        chan *nodepb.Prep
 	prepStreams   map[uint32]nodepb.Node_PrepareClient
 	prepStreamsMu sync.RWMutex
-
-	comCh        chan *nodepb.Com
-	comStreams   map[uint32]nodepb.Node_CommitClient
-	comStreamsMu sync.RWMutex
 
 	waitingORespCh chan *seqpb.OrderResponse
 
@@ -42,7 +35,6 @@ type Node struct {
 	orderReqCh  chan<- *seqpb.OrderRequest
 
 	prepMan *prepManager
-	comMan  *comManager
 }
 
 func NewNode(id, color uint32, app frame.Application) (*Node, error) {
@@ -50,14 +42,10 @@ func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node.app = app
 	node.id = id
 	node.color = color
-	node.ackChs = make(map[uint32]chan *nodepb.Ack)
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.prepCh = make(chan *nodepb.Prep, 1024)
-	node.comCh = make(chan *nodepb.Com, 1024)
-	node.comStreams = make(map[uint32]nodepb.Node_CommitClient)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
 	node.prepMan = newPrepManager(app)
-	node.comMan = newComManager(app)
 	return node, nil
 }
 
@@ -76,11 +64,9 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 		errC <- err
 	}()
 
-	go n.broadcastCommitMsgs()
 	go n.broadcastPrepareMsgs()
 	go n.handleAppCommitRequests()
 	go n.handleOrderResponses()
-	go n.commit()
 
 	for _, peerIp := range peerIpAddrs {
 		err := n.connectToPeer(peerIp, true)
@@ -129,20 +115,6 @@ func (n *Node) connectToPeer(peerIP string, back bool) error {
 	n.prepStreamsMu.Lock()
 	n.prepStreams[id] = prepStream
 	n.prepStreamsMu.Unlock()
-
-	comStream, err := client.Commit(context.Background())
-	if err != nil {
-		return err
-	}
-	n.comStreamsMu.Lock()
-	n.comStreams[id] = comStream
-	n.comStreamsMu.Unlock()
-
-	ackStream, err := client.GetAcks(context.Background(), &nodepb.AckReq{NodeID: n.id})
-	if err != nil {
-		return err
-	}
-	go n.receiveAcks(ackStream)
 
 	if back {
 		_, err = client.Register(context.Background(), &nodepb.RegisterRequest{IP: n.ipAddr})

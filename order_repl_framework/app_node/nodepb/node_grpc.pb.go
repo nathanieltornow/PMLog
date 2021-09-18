@@ -20,8 +20,6 @@ const _ = grpc.SupportPackageIsVersion7
 type NodeClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*Empty, error)
 	Prepare(ctx context.Context, opts ...grpc.CallOption) (Node_PrepareClient, error)
-	GetAcks(ctx context.Context, in *AckReq, opts ...grpc.CallOption) (Node_GetAcksClient, error)
-	Commit(ctx context.Context, opts ...grpc.CallOption) (Node_CommitClient, error)
 }
 
 type nodeClient struct {
@@ -75,80 +73,12 @@ func (x *nodePrepareClient) CloseAndRecv() (*Empty, error) {
 	return m, nil
 }
 
-func (c *nodeClient) GetAcks(ctx context.Context, in *AckReq, opts ...grpc.CallOption) (Node_GetAcksClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[1], "/app_node.Node/GetAcks", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeGetAcksClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type Node_GetAcksClient interface {
-	Recv() (*Ack, error)
-	grpc.ClientStream
-}
-
-type nodeGetAcksClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeGetAcksClient) Recv() (*Ack, error) {
-	m := new(Ack)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
-func (c *nodeClient) Commit(ctx context.Context, opts ...grpc.CallOption) (Node_CommitClient, error) {
-	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[2], "/app_node.Node/Commit", opts...)
-	if err != nil {
-		return nil, err
-	}
-	x := &nodeCommitClient{stream}
-	return x, nil
-}
-
-type Node_CommitClient interface {
-	Send(*Com) error
-	CloseAndRecv() (*Empty, error)
-	grpc.ClientStream
-}
-
-type nodeCommitClient struct {
-	grpc.ClientStream
-}
-
-func (x *nodeCommitClient) Send(m *Com) error {
-	return x.ClientStream.SendMsg(m)
-}
-
-func (x *nodeCommitClient) CloseAndRecv() (*Empty, error) {
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	m := new(Empty)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // NodeServer is the server API for Node service.
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
 type NodeServer interface {
 	Register(context.Context, *RegisterRequest) (*Empty, error)
 	Prepare(Node_PrepareServer) error
-	GetAcks(*AckReq, Node_GetAcksServer) error
-	Commit(Node_CommitServer) error
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -161,12 +91,6 @@ func (UnimplementedNodeServer) Register(context.Context, *RegisterRequest) (*Emp
 }
 func (UnimplementedNodeServer) Prepare(Node_PrepareServer) error {
 	return status.Errorf(codes.Unimplemented, "method Prepare not implemented")
-}
-func (UnimplementedNodeServer) GetAcks(*AckReq, Node_GetAcksServer) error {
-	return status.Errorf(codes.Unimplemented, "method GetAcks not implemented")
-}
-func (UnimplementedNodeServer) Commit(Node_CommitServer) error {
-	return status.Errorf(codes.Unimplemented, "method Commit not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
@@ -225,53 +149,6 @@ func (x *nodePrepareServer) Recv() (*Prep, error) {
 	return m, nil
 }
 
-func _Node_GetAcks_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(AckReq)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
-	}
-	return srv.(NodeServer).GetAcks(m, &nodeGetAcksServer{stream})
-}
-
-type Node_GetAcksServer interface {
-	Send(*Ack) error
-	grpc.ServerStream
-}
-
-type nodeGetAcksServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeGetAcksServer) Send(m *Ack) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func _Node_Commit_Handler(srv interface{}, stream grpc.ServerStream) error {
-	return srv.(NodeServer).Commit(&nodeCommitServer{stream})
-}
-
-type Node_CommitServer interface {
-	SendAndClose(*Empty) error
-	Recv() (*Com, error)
-	grpc.ServerStream
-}
-
-type nodeCommitServer struct {
-	grpc.ServerStream
-}
-
-func (x *nodeCommitServer) SendAndClose(m *Empty) error {
-	return x.ServerStream.SendMsg(m)
-}
-
-func (x *nodeCommitServer) Recv() (*Com, error) {
-	m := new(Com)
-	if err := x.ServerStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
-}
-
 // Node_ServiceDesc is the grpc.ServiceDesc for Node service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -288,16 +165,6 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Prepare",
 			Handler:       _Node_Prepare_Handler,
-			ClientStreams: true,
-		},
-		{
-			StreamName:    "GetAcks",
-			Handler:       _Node_GetAcks_Handler,
-			ServerStreams: true,
-		},
-		{
-			StreamName:    "Commit",
-			Handler:       _Node_Commit_Handler,
 			ClientStreams: true,
 		},
 	},
