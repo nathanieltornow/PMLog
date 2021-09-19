@@ -9,18 +9,16 @@ import (
 type onBatch func(prep *nodepb.BatchedPrep)
 
 type prepBatch struct {
-	onB     onBatch
-	maxSize int
+	onB onBatch
 
 	prepCh chan *nodepb.Prep
 }
 
 func newPrepBatch(onB onBatch, maxSize int, interval time.Duration) *prepBatch {
 	b := new(prepBatch)
-	b.maxSize = maxSize
 	b.onB = onB
 	b.prepCh = make(chan *nodepb.Prep, 1024)
-	go b.batch(interval)
+	go b.batch(interval, maxSize)
 	return b
 }
 
@@ -28,7 +26,7 @@ func (b *prepBatch) add(prepMsg *nodepb.Prep) {
 	b.prepCh <- prepMsg
 }
 
-func (b *prepBatch) batch(interval time.Duration) {
+func (b *prepBatch) batch(interval time.Duration, maxSize int) {
 
 	var current *nodepb.BatchedPrep
 	newBatch := true
@@ -45,7 +43,7 @@ func (b *prepBatch) batch(interval time.Duration) {
 			}
 			current.Preps = append(current.Preps, prepMsg)
 
-			if proto.Size(current) > b.maxSize {
+			if proto.Size(current) > maxSize {
 				b.onB(current)
 				newBatch = true
 			}
