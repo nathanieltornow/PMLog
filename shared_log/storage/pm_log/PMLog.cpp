@@ -9,11 +9,16 @@
 #include <libpmemobj++/make_persistent_array_atomic.hpp>
 #include <libpmemobj++/transaction.hpp>
 #include <libpmemobj++/pool.hpp>
+#include <thread>  
 #include "PMLog.hpp"
+#include "LogCache.hpp"
 
+#define CACHE_SIZE 1024
 #define KEY_SIZE 16
 
 using namespace pmem::obj;
+
+static LogCache logCache;
 
 struct root {
     persistent_ptr<cppPMLog> pmLog;
@@ -77,11 +82,10 @@ void cppFinalize(persistent_ptr<cppPMLog> cppLog) {
 	
 	pmem::obj::transaction::run(pop, [&] {
 		delete_persistent<cppPMLog>(cppLog);
-		pop.root()->pmLog = nullptr;		
-	});
-	
+		pop.root()->pmLog = nullptr;
+	});	
 
-	pop.close();	
+	pop.close();
 }
 
 cppPMLog::cppPMLog(pool<root> pop) {
@@ -129,6 +133,26 @@ void cppPMLog::restartMaps() {
 	}
 }
 
+void cppPMLog::cacheRecords(cppPMLog *log, uint64_t gsn) {
+	int records = 0;
+	uint64_t curr_gsn = gsn;
+	GSNmap::accessor acc;
+	
+	try {
+		while (records < CACHE_SIZE) {
+			if (log->gsnPptr->find(acc, curr_gsn))
+				logCache.Append(acc->second->data(), curr_gsn);
+				records++;
+			curr_gsn++;
+		}	
+	}
+	catch (const std::runtime_error &e){
+		std::cerr << e.what();
+		log->pop.get_rw().close();
+		exit(-1);
+	}	
+}
+
 int cppPMLog::Append(const char* record, uint64_t lsn) {
 	persistent_ptr<PString> s;
 	bool res;	
@@ -159,11 +183,14 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 
 		if (res) {
 			persistent_ptr<PString> record = acc->second;
-			if (!(gsnPptr->insert(GSNmap::value_type(gsn, record))))
+			if (!(this->gsnPptr->insert(GSNmap::value_type(gsn, record))))
 				return -2;
 			
 			this->highest_gsn = gsn;
 			this->pop.get_rw().persist(this->highest_gsn);
+			acc.release();
+			this->lsnPptr->erase(lsn);
+			logCache.Append(record->data(), gsn); 
 			
 			return 0;
 		}
@@ -181,16 +208,23 @@ uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
 	if (gsn > this->highest_gsn.get_ro())
 		return 0;
 	
-	uint64_t next_gsn = gsn + 1;
+	uint64_t next_gsn;
+	if (next_gsn = logCache.Read(gsn, storage))
+		return next_gsn;
+	else {
+		std::thread tmp(&cppPMLog::cacheRecords, this, this, gsn);
+		tmp.detach();
+	}
 	
 	try {
 		GSNmap::accessor acc;
-		if (gsnPptr->find(acc, gsn))
+		if (this->gsnPptr->find(acc, gsn))
 			strcpy(storage, acc->second->data());
-			
-		while (!(gsnPptr->find(acc, next_gsn))) {
+		
+		next_gsn = gsn + 1;
+		while (!(this->gsnPptr->find(acc, next_gsn))) {
 			if (next_gsn > this->highest_gsn)
-				return 0;
+				return gsn;
 			next_gsn++;
 		}
 		return next_gsn;
@@ -206,9 +240,9 @@ int cppPMLog::Trim(uint64_t gsn) {
 	GSNmap::iterator it;
 	
 	try {
-		for (it = gsnPptr->begin(); it != gsnPptr->end(); it++) {
+		for (it = this->gsnPptr->begin(); it != this->gsnPptr->end(); it++) {
 			if (it->first < gsn) {
-				gsnPptr->erase(it->first);
+				this->gsnPptr->erase(it->first);
 			}
 		}
 		
