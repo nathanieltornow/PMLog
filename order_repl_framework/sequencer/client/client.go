@@ -3,16 +3,33 @@ package client
 import (
 	"context"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
+	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
+	"sync"
+	"time"
+)
+
+const (
+	orderReqInterval = time.Microsecond * 100
 )
 
 type Client struct {
 	stream sequencerpb.Sequencer_GetOrderClient
-	oRspC  chan *sequencerpb.OrderResponse
-	oReqC  chan *sequencerpb.OrderRequest
+
+	interval time.Duration
+
+	color uint32
+
+	mu    sync.RWMutex
+	cache map[uint64][]*sequencerpb.OrderRequest
+
+	oRspC chan *sequencerpb.OrderResponse
+	oReqC chan *sequencerpb.OrderRequest
+
+	sendC chan *sequencerpb.BatchedOrderRequest
 }
 
-func NewClient(IP string) (*Client, error) {
+func NewClient(IP string, color uint32, options ...Option) (*Client, error) {
 	conn, err := grpc.Dial(IP, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
@@ -26,34 +43,72 @@ func NewClient(IP string) (*Client, error) {
 	client.stream = stream
 	client.oReqC = make(chan *sequencerpb.OrderRequest, 1024)
 	client.oRspC = make(chan *sequencerpb.OrderResponse, 1024)
-	go client.sendOReqs()
+	client.sendC = make(chan *sequencerpb.BatchedOrderRequest, 1024)
+	client.interval = orderReqInterval
+	client.color = color
+	client.cache = make(map[uint64][]*sequencerpb.OrderRequest)
+	for _, o := range options {
+		o(client)
+	}
+	go client.batchOrderRequests()
 	go client.receiveORsps()
+	go client.sendBatchedOReqs()
 	return client, nil
 }
 
-func (c *Client) MakeOrderRequests() chan<- *sequencerpb.OrderRequest {
-	return c.oReqC
+func (c *Client) MakeOrderRequest(oReq *sequencerpb.OrderRequest) {
+	c.oReqC <- oReq
 }
 
-func (c *Client) GetOrderResponses() <-chan *sequencerpb.OrderResponse {
-	return c.oRspC
+func (c *Client) GetNextOrderResponse() *sequencerpb.OrderResponse {
+	oRsp := <-c.oRspC
+	return oRsp
 }
 
-func (c *Client) Stop() error {
-	err := c.stream.CloseSend()
-	if err != nil {
-		return err
+func (c *Client) batchOrderRequests() {
+
+	var colorToOReq map[uint32]*sequencerpb.OrderRequest
+
+	newBatch := true
+	var send <-chan time.Time
+
+	token := uint32(0)
+
+	for {
+		select {
+		case oReq := <-c.oReqC:
+			if newBatch {
+				colorToOReq = make(map[uint32]*sequencerpb.OrderRequest)
+				send = time.After(c.interval)
+				newBatch = false
+			}
+
+			localToken := c.addToCache(token, oReq)
+
+			curOReq, ok := colorToOReq[oReq.Color]
+			if !ok {
+				colorToOReq[oReq.Color] = &sequencerpb.OrderRequest{
+					LocalToken:   localToken,
+					NumOfRecords: oReq.NumOfRecords,
+					Color:        oReq.Color,
+					OriginColor:  c.color,
+				}
+				continue
+			}
+			curOReq.NumOfRecords += oReq.NumOfRecords
+
+		case <-send:
+			token++
+			c.sendC <- mapToBatchedOReq(colorToOReq)
+			newBatch = true
+		}
 	}
-	close(c.oRspC)
-	close(c.oReqC)
-	return nil
 }
 
-func (c *Client) sendOReqs() {
-	for oReq := range c.oReqC {
-		err := c.stream.Send(oReq)
-		if err != nil {
-			return
+func (c *Client) sendBatchedOReqs() {
+	for bOReq := range c.sendC {
+		if err := c.stream.Send(bOReq); err != nil {
+			logrus.Fatalln(err)
 		}
 	}
 }
@@ -62,8 +117,59 @@ func (c *Client) receiveORsps() {
 	for {
 		rsp, err := c.stream.Recv()
 		if err != nil {
-			return
+			logrus.Fatalln(err)
 		}
-		c.oRspC <- rsp
+		if rsp.OriginColor != c.color {
+			continue
+		}
+		for oRsp := range c.getOrderResponses(rsp) {
+			c.oRspC <- oRsp
+		}
 	}
+}
+
+func (c *Client) addToCache(token uint32, oReq *sequencerpb.OrderRequest) uint64 {
+	colorToken := (uint64(token) << 32) + uint64(oReq.Color)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	oReqList, ok := c.cache[colorToken]
+	if !ok {
+		newList := []*sequencerpb.OrderRequest{oReq}
+		c.cache[colorToken] = newList
+		return colorToken
+	}
+	oReqList = append(oReqList, oReq)
+	return colorToken
+}
+
+func (c *Client) getOrderResponses(inORsp *sequencerpb.OrderResponse) <-chan *sequencerpb.OrderResponse {
+	oReqList, ok := c.cache[inORsp.LocalToken]
+	if !ok {
+		logrus.Fatalln("failed to find orderRequests")
+		return nil
+	}
+	globalToken := inORsp.GlobalToken
+	ch := make(chan *sequencerpb.OrderResponse, len(oReqList))
+	defer func() {
+		for _, oReq := range oReqList {
+			ch <- &sequencerpb.OrderResponse{
+				LocalToken:   oReq.LocalToken,
+				NumOfRecords: oReq.NumOfRecords,
+				Color:        oReq.Color,
+				OriginColor:  oReq.OriginColor,
+				GlobalToken:  globalToken,
+			}
+			globalToken += uint64(oReq.NumOfRecords)
+		}
+		close(ch)
+	}()
+	return ch
+}
+
+func mapToBatchedOReq(oReqMap map[uint32]*sequencerpb.OrderRequest) *sequencerpb.BatchedOrderRequest {
+	oReqs := make([]*sequencerpb.OrderRequest, len(oReqMap))
+	for i, oReq := range oReqMap {
+		oReqs[i] = oReq
+	}
+	return &sequencerpb.BatchedOrderRequest{OReqs: oReqs}
 }

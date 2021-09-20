@@ -39,7 +39,7 @@ func (c *sequencerClient) GetOrder(ctx context.Context, opts ...grpc.CallOption)
 }
 
 type Sequencer_GetOrderClient interface {
-	Send(*OrderRequest) error
+	Send(*BatchedOrderRequest) error
 	Recv() (*OrderResponse, error)
 	grpc.ClientStream
 }
@@ -48,7 +48,7 @@ type sequencerGetOrderClient struct {
 	grpc.ClientStream
 }
 
-func (x *sequencerGetOrderClient) Send(m *OrderRequest) error {
+func (x *sequencerGetOrderClient) Send(m *BatchedOrderRequest) error {
 	return x.ClientStream.SendMsg(m)
 }
 
@@ -94,7 +94,7 @@ func _Sequencer_GetOrder_Handler(srv interface{}, stream grpc.ServerStream) erro
 
 type Sequencer_GetOrderServer interface {
 	Send(*OrderResponse) error
-	Recv() (*OrderRequest, error)
+	Recv() (*BatchedOrderRequest, error)
 	grpc.ServerStream
 }
 
@@ -106,8 +106,8 @@ func (x *sequencerGetOrderServer) Send(m *OrderResponse) error {
 	return x.ServerStream.SendMsg(m)
 }
 
-func (x *sequencerGetOrderServer) Recv() (*OrderRequest, error) {
-	m := new(OrderRequest)
+func (x *sequencerGetOrderServer) Recv() (*BatchedOrderRequest, error) {
+	m := new(BatchedOrderRequest)
 	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
