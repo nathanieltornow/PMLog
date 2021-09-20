@@ -15,28 +15,25 @@ var (
 
 func main() {
 	flag.Parse()
-	client, err := seqclient.NewClient(*IP)
+	client, err := seqclient.NewClient(*IP, 4)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
 
 	go func() {
-		oRspC := client.GetOrderResponses()
-		for oRsp := range oRspC {
+		for {
+			oRsp := client.GetNextOrderResponse()
 			logrus.Infof("Got OrderResponse: %v\n", oRsp)
 		}
 	}()
 
-	oReqC := client.MakeOrderRequests()
-
 	for i := 0; i < 10; i++ {
-		time.Sleep(time.Second)
-		oReq := &pb.OrderRequest{Lsn: uint64(i), Color: uint32(*color)}
+		oReq := &pb.OrderRequest{LocalToken: uint64(i), Color: uint32(0), NumOfRecords: 5}
 		logrus.Infof("Sending OrderRequest %v\n", oReq)
-		oReqC <- oReq
+		client.MakeOrderRequest(oReq)
+		time.Sleep(time.Second * 5)
 	}
 	time.Sleep(2 * time.Second)
-	err = client.Stop()
 	if err != nil {
 		logrus.Fatalln(err)
 	}

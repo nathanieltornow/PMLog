@@ -122,9 +122,7 @@ func (c *Client) receiveORsps() {
 		if rsp.OriginColor != c.color {
 			continue
 		}
-		for oRsp := range c.getOrderResponses(rsp) {
-			c.oRspC <- oRsp
-		}
+		c.enqueueOrderResponses(rsp)
 	}
 }
 
@@ -142,34 +140,28 @@ func (c *Client) addToCache(token uint32, oReq *sequencerpb.OrderRequest) uint64
 	return colorToken
 }
 
-func (c *Client) getOrderResponses(inORsp *sequencerpb.OrderResponse) <-chan *sequencerpb.OrderResponse {
+func (c *Client) enqueueOrderResponses(inORsp *sequencerpb.OrderResponse) {
 	oReqList, ok := c.cache[inORsp.LocalToken]
 	if !ok {
 		logrus.Fatalln("failed to find orderRequests")
-		return nil
 	}
 	globalToken := inORsp.GlobalToken
-	ch := make(chan *sequencerpb.OrderResponse, len(oReqList))
-	defer func() {
-		for _, oReq := range oReqList {
-			ch <- &sequencerpb.OrderResponse{
-				LocalToken:   oReq.LocalToken,
-				NumOfRecords: oReq.NumOfRecords,
-				Color:        oReq.Color,
-				OriginColor:  oReq.OriginColor,
-				GlobalToken:  globalToken,
-			}
-			globalToken += uint64(oReq.NumOfRecords)
+	for _, oReq := range oReqList {
+		c.oRspC <- &sequencerpb.OrderResponse{
+			LocalToken:   oReq.LocalToken,
+			NumOfRecords: oReq.NumOfRecords,
+			Color:        oReq.Color,
+			OriginColor:  oReq.OriginColor,
+			GlobalToken:  globalToken,
 		}
-		close(ch)
-	}()
-	return ch
+		globalToken += uint64(oReq.NumOfRecords)
+	}
 }
 
 func mapToBatchedOReq(oReqMap map[uint32]*sequencerpb.OrderRequest) *sequencerpb.BatchedOrderRequest {
-	oReqs := make([]*sequencerpb.OrderRequest, len(oReqMap))
-	for i, oReq := range oReqMap {
-		oReqs[i] = oReq
+	oReqs := make([]*sequencerpb.OrderRequest, 0)
+	for _, oReq := range oReqMap {
+		oReqs = append(oReqs, oReq)
 	}
 	return &sequencerpb.BatchedOrderRequest{OReqs: oReqs}
 }
