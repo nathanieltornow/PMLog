@@ -37,16 +37,18 @@ func (n *Node) handleAppCommitRequests() {
 
 		n.prepB.add(prepMsg)
 		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.orderReqCh <- &seqpb.OrderRequest{Lsn: newToken, Color: comReq.Color, OriginColor: n.color}
+		n.orderClient.MakeOrderRequest(&seqpb.OrderRequest{LocalToken: newToken, Color: comReq.Color, OriginColor: n.color})
 
 		n.prepMan.prepare(prepMsg, comReq.FindToken)
 	}
 }
 
 func (n *Node) handleOrderResponses() {
-	for oRsp := range n.orderRespCh {
-		n.prepMan.waitForPrep(oRsp.Lsn)
-		if err := n.app.Commit(oRsp.Lsn, oRsp.Color, oRsp.Gsn, uint32(oRsp.Lsn) == n.id); err != nil {
+	for {
+		oRsp := n.orderClient.GetNextOrderResponse()
+
+		n.prepMan.waitForPrep(oRsp.LocalToken)
+		if err := n.app.Commit(oRsp.LocalToken, oRsp.Color, oRsp.GlobalToken, uint32(oRsp.LocalToken) == n.id); err != nil {
 			logrus.Fatalln("failed to commit")
 		}
 	}

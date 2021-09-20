@@ -40,12 +40,10 @@ type Node struct {
 
 	waitingORespCh chan *seqpb.OrderResponse
 
-	orderRespCh <-chan *seqpb.OrderResponse
-	orderReqCh  chan<- *seqpb.OrderRequest
-
 	prepMan *prepManager
+	prepB   *prepBatch
 
-	prepB *prepBatch
+	orderClient *order_client.Client
 }
 
 func NewNode(id, color uint32, app frame.Application, options ...NodeOption) (*Node, error) {
@@ -65,12 +63,12 @@ func NewNode(id, color uint32, app frame.Application, options ...NodeOption) (*N
 
 func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error {
 	n.ipAddr = ipAddr
-	orderClient, err := order_client.NewClient(orderIP)
+	orderClient, err := order_client.NewClient(orderIP, n.color)
 	if err != nil {
 		return err
 	}
-	n.orderReqCh = orderClient.MakeOrderRequests()
-	n.orderRespCh = orderClient.GetOrderResponses()
+
+	n.orderClient = orderClient
 
 	errC := make(chan error, 1)
 	go func() {
