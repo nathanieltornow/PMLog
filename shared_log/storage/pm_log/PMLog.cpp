@@ -36,12 +36,11 @@ PersistentString::PersistentString(const char* s) {
 }
 
 void *cppStartUp() {
-	//auto pop = pmem::obj::pool<root>::create("log", "example", 33554432);
 	pool<root> pop;
 	
 	try {
-		if (pool<root>::check("log", "example") == 1)
-			pop = pool<root>::open("log", "example");
+		if (pool<root>::check("PMLog", "logLayout") == 1)
+			pop = pool<root>::open("PMLog", "logLayout");
 		else {
 			std::cerr << "Memory pool is corrupted. Exiting...\n";
 			exit(-1);
