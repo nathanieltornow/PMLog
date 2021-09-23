@@ -38,5 +38,6 @@ public:
     int Trim(uint64_t gsn);
 };
 
+void setup(std::string &s1, std::string &s2);
 void* cppStartUp();
 void cppFinalize(persistent_ptr<cppPMLog> cppLog);

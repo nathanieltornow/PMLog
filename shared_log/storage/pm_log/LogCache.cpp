@@ -1,7 +1,7 @@
 #include "LogCache.hpp"
 #include <iostream>
 
-#define MAX_SIZE 50000000
+size_t MAX_CACHE_SIZE = 0;
 
 LogCache::LogCache() {
 	this->logCachePtr = new GSNmapCache();
@@ -28,7 +28,7 @@ uint64_t LogCache::next_gsn(uint64_t gsn) {
 
 int LogCache::Append(std::string record, uint64_t gsn) {
 	try {		
-		if (this->logCachePtr->size() == MAX_SIZE) {
+		if (this->logCachePtr->size() == MAX_CACHE_SIZE) {
 			this->logCachePtr->erase(this->lowest_gsn);
 			uint64_t tmp = this->next_gsn(this->lowest_gsn);
 			

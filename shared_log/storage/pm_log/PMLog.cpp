@@ -1,5 +1,6 @@
 #include <cstdlib>
 #include <iostream>
+#include <fstream>
 #include <ctime>
 #include <utility>
 #include <cstdint>
@@ -13,8 +14,8 @@
 #include "PMLog.hpp"
 #include "LogCache.hpp"
 
-#define CACHE_SIZE 1024
-#define KEY_SIZE 16
+static size_t CACHE_SEGMENT_SIZE = 0;
+extern size_t MAX_CACHE_SIZE;
 
 using namespace pmem::obj;
 
@@ -35,14 +36,39 @@ PersistentString::PersistentString(const char* s) {
 	strcpy(this->array, s);
 }
 
+void setup(std::string &s1, std::string &s2) {
+	std::ifstream logFile;
+	logFile.open("configuration.txt", std::ifstream::in);
+
+	if (logFile.is_open()) {
+		getline(logFile, s1);
+		getline(logFile, s2);
+		
+		std::string tmp;
+		getline(logFile, tmp);
+		CACHE_SEGMENT_SIZE = std::stoi(tmp);
+		
+		getline(logFile, tmp);
+		MAX_CACHE_SIZE = std::stoi(tmp);
+		
+		logFile.close();
+	}
+}
+
 void *cppStartUp() {
 	pool<root> pop;
+	std::string s1, s2;
 	
+	setup(s1, s2);
+	
+	s1.pop_back();
+	s2.pop_back();
+
 	try {
-		if (pool<root>::check("PMLog", "logLayout") == 1)
-			pop = pool<root>::open("PMLog", "logLayout");
+		if (pool<root>::check(s1, s2) == 1)
+			pop = pool<root>::open(s1, s2);
 		else {
-			std::cerr << "Memory pool is corrupted. Exiting...\n";
+			std::cerr << "Memory pool " << logFileName << " with layout " << logFileLayout<< " is corrupted or does not exist. Exiting...\n" << std::flush;
 			exit(-1);
 		}
 	}
@@ -138,7 +164,7 @@ void cppPMLog::cacheRecords(cppPMLog *log, uint64_t gsn) {
 	GSNmap::accessor acc;
 	
 	try {
-		while (records < CACHE_SIZE) {
+		while (records < CACHE_SEGMENT_SIZE) {
 			if (log->gsnPptr->find(acc, curr_gsn))
 				logCache.Append(acc->second->data(), curr_gsn);
 				records++;
