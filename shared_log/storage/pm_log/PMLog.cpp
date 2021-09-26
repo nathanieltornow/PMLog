@@ -68,7 +68,7 @@ void *cppStartUp() {
 		if (pool<root>::check(s1, s2) == 1)
 			pop = pool<root>::open(s1, s2);
 		else {
-			std::cerr << "Memory pool " << logFileName << " with layout " << logFileLayout<< " is corrupted or does not exist. Exiting...\n" << std::flush;
+			std::cerr << "Memory pool " << s1 << " with layout " << s2<< " is corrupted or does not exist. Exiting...\n" << std::flush;
 			exit(-1);
 		}
 	}
