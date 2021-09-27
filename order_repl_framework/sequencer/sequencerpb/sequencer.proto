@@ -4,7 +4,7 @@ package sequencer;
 option go_package = "github.com/nathanieltornow/PMLog/sequencer/sequencerpb";
 
 service Sequencer {
-  rpc GetOrder(stream BatchedOrderRequest) returns (stream OrderResponse);
+  rpc GetOrder(stream OrderRequest) returns (stream OrderResponse);
 }
 
 message BatchedOrderRequest {

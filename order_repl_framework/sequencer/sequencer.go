@@ -113,6 +113,7 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			s.oRspCs[id] = oRspC
 			s.oRspCsMu.Unlock()
 			first = false
+			continue
 		}
 
 		for _, oReq := range batchedOReq.OReqs {
@@ -127,4 +128,31 @@ func (s *Sequencer) getAndIncSequenceNum(inc uint32) uint64 {
 	res := (uint64(s.epoch) << 32) + uint64(s.sn)
 	s.sn += inc
 	return res
+}
+
+func (s *Sequencer) LocalGetOrder(batchedOReqInCh <-chan *sequencerpb.BatchedOrderRequest) <-chan *sequencerpb.OrderResponse {
+	oRspC := make(chan *sequencerpb.OrderResponse, 1024)
+	var id uint64
+	first := true
+	defer func() {
+		for batchedOReq := range batchedOReqInCh {
+			if first {
+				s.oRspCsMu.Lock()
+				s.oRspCsID++
+				id = (uint64(s.oRspCsID) << 32) + uint64(batchedOReq.OReqs[0].OriginColor)
+				s.oRspCs[id] = oRspC
+				s.oRspCsMu.Unlock()
+				first = false
+				continue
+			}
+			for _, oReq := range batchedOReq.OReqs {
+				s.oReqCIn <- oReq
+			}
+		}
+		s.oRspCsMu.Lock()
+		delete(s.oRspCs, id)
+		s.oRspCsMu.Unlock()
+		close(oRspC)
+	}()
+	return oRspC
 }

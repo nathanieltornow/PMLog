@@ -2,12 +2,13 @@ package app_node
 
 import (
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/color_service"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	seqpb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 )
 
-func (n *Node) broadcastPrepareMsgs(batchedPrep *nodepb.BatchedPrep) {
+func (n *Node) broadcastPrepareMsgs(batchedPrep *nodepb.Prep) {
 	n.prepStreamsMu.RLock()
 	for _, stream := range n.prepStreams {
 		if err := stream.Send(batchedPrep); err != nil {
@@ -27,29 +28,30 @@ func (n *Node) handleAppCommitRequests() {
 	}()
 
 	for comReq := range comReqCh {
-		newToken := n.getNewLocalToken()
+		n.colorServicesMu.RLock()
+		cs, ok := n.colorServices[comReq.Color]
+		n.colorServicesMu.RUnlock()
 
-		prepMsg := &nodepb.Prep{
-			LocalToken: newToken,
-			Color:      comReq.Color,
-			Content:    comReq.Content,
+		if !ok {
+			n.colorServicesMu.Lock()
+			cs = color_service.NewColorService(n.id, comReq.Color, n.color, n.app, n.handlePreparation, n.makeOrderRequest)
+			n.colorServices[comReq.Color] = cs
+			n.colorServicesMu.Unlock()
 		}
-
-		n.prepB.add(prepMsg)
-		// put into channel to be broadcasted to other nodes and send orderrequest
-		n.orderClient.MakeOrderRequest(&seqpb.OrderRequest{LocalToken: newToken, Color: comReq.Color, OriginColor: n.color})
-
-		n.prepMan.prepare(prepMsg, comReq.FindToken)
+		cs.PrepareCoordinator(comReq.Content, comReq.FindToken)
 	}
 }
 
-func (n *Node) handleOrderResponses() {
-	for {
-		oRsp := n.orderClient.GetNextOrderResponse()
+func (n *Node) makeOrderRequest(oReq *seqpb.OrderRequest) {
 
-		n.prepMan.waitForPrep(oRsp.LocalToken)
-		if err := n.app.Commit(oRsp.LocalToken, oRsp.Color, oRsp.GlobalToken, uint32(oRsp.LocalToken) == n.id); err != nil {
-			logrus.Fatalln("failed to commit")
-		}
+}
+
+func (n *Node) handlePreparation(prepMsg *nodepb.Prep) {
+
+}
+
+func (n *Node) handleOrderResponses() {
+	for oRsp {
+
 	}
 }

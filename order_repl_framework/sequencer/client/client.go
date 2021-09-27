@@ -2,6 +2,7 @@ package client
 
 import (
 	"context"
+	"fmt"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
@@ -50,6 +51,11 @@ func NewClient(IP string, color uint32, options ...Option) (*Client, error) {
 	for _, o := range options {
 		o(client)
 	}
+	err = stream.Send(&sequencerpb.BatchedOrderRequest{OReqs: []*sequencerpb.OrderRequest{&sequencerpb.OrderRequest{OriginColor: color}}})
+	if err != nil {
+		return nil, err
+	}
+
 	go client.batchOrderRequests()
 	go client.receiveORsps()
 	go client.sendBatchedOReqs()
@@ -119,6 +125,7 @@ func (c *Client) receiveORsps() {
 		if err != nil {
 			logrus.Fatalln(err)
 		}
+		fmt.Println("rcv", rsp)
 		if rsp.OriginColor != c.color {
 			continue
 		}
