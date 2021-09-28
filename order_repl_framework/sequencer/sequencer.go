@@ -42,7 +42,8 @@ type Sequencer struct {
 
 func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
 	s := new(Sequencer)
-	s.leader = leader
+	// todo (hotfix)
+	s.leader = true
 	s.root = root
 	s.color = color
 	s.oReqCache = make(map[uint64]*sequencerpb.OrderRequest)

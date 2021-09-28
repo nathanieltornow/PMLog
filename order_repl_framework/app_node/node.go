@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/local_node"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	order_client "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/client"
 	seqpb "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
@@ -23,43 +24,36 @@ const (
 type Node struct {
 	nodepb.UnimplementedNodeServer
 
+	id     uint32
+	color  uint32
+	ipAddr string
+
 	app frame.Application
 
-	id      uint32
-	color   uint32
-	ipAddr  string
-	ctr     uint32
-	helpCtr uint32
-
-	maxMsgSize int
-
-	batchInterval time.Duration
-
+	prepareCh     chan *nodepb.Prep
 	prepStreams   map[uint32]nodepb.Node_PrepareClient
 	prepStreamsMu sync.RWMutex
 
 	waitingORespCh chan *seqpb.OrderResponse
 
-	orderRespCh <-chan *seqpb.OrderResponse
-	orderReqCh  chan<- *seqpb.OrderRequest
+	localNodes   map[uint32]*local_node.LocalNode
+	localNodesMu sync.RWMutex
 
-	prepMan *prepManager
+	orderClient *order_client.Client
 
-	prepB *prepBatch
+	helpCtr uint32
 }
 
-func NewNode(id, color uint32, app frame.Application, options ...NodeOption) (*Node, error) {
+func NewNode(id, color uint32, app frame.Application) (*Node, error) {
 	node := new(Node)
 	node.app = app
 	node.id = id
 	node.color = color
+	node.prepareCh = make(chan *nodepb.Prep)
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
-	node.maxMsgSize = maxPrepMsgSize
-	node.batchInterval = prepBatchInterval
-	for _, o := range options {
-		o(node)
-	}
+	node.localNodes = make(map[uint32]*local_node.LocalNode)
+
 	return node, nil
 }
 
@@ -69,17 +63,13 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 	if err != nil {
 		return err
 	}
-	n.orderReqCh = orderClient.MakeOrderRequests()
-	n.orderRespCh = orderClient.GetOrderResponses()
+	n.orderClient = orderClient
 
 	errC := make(chan error, 1)
 	go func() {
 		err := n.startGRPCSever()
 		errC <- err
 	}()
-
-	n.prepMan = newPrepManager(n.app)
-	n.prepB = newPrepBatch(n.broadcastPrepareMsgs, n.maxMsgSize, n.batchInterval)
 
 	go n.handleAppCommitRequests()
 	go n.handleOrderResponses()
@@ -135,7 +125,23 @@ func (n *Node) connectToPeer(peerIP string, back bool) error {
 	return nil
 }
 
-func (n *Node) getNewLocalToken() uint64 {
-	ctr := atomic.AddUint32(&n.ctr, 1)
-	return (uint64(ctr) << 32) + uint64(n.id)
+func (n *Node) addNewLocalNode(color uint32) *local_node.LocalNode {
+	n.localNodesMu.Lock()
+	defer n.localNodesMu.Unlock()
+	ln, ok := n.localNodes[color]
+	if !ok {
+		ln = local_node.NewLocalNode(n.id, n.color, n.app, n.makePrepareMsg, n.orderClient.MakeOrderRequest)
+		n.localNodes[color] = ln
+	}
+	return ln
+}
+
+func (n *Node) getLocalNode(color uint32) *local_node.LocalNode {
+	n.localNodesMu.RLock()
+	ln, ok := n.localNodes[color]
+	n.localNodesMu.RUnlock()
+	if !ok {
+		return n.addNewLocalNode(color)
+	}
+	return ln
 }

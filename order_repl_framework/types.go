@@ -1,5 +1,10 @@
 package order_repl_framework
 
+import (
+	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
+)
+
 type Application interface {
 	MakeCommitRequests(chan *CommitRequest) error
 
@@ -13,3 +18,7 @@ type CommitRequest struct {
 	Content   string
 	FindToken uint64
 }
+
+type OnPrepFunc func(prep *nodepb.Prep)
+
+type OnOrderFunc func(oReq *sequencerpb.OrderRequest)

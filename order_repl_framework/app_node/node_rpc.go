@@ -8,14 +8,12 @@ import (
 
 func (n *Node) Prepare(stream nodepb.Node_PrepareServer) error {
 	for {
-		batchedPrepMsg, err := stream.Recv()
+		prepMsg, err := stream.Recv()
 		if err != nil {
 			return fmt.Errorf("failed to receive prep-msg: %v", err)
 		}
 
-		for _, prepMsg := range batchedPrepMsg.Preps {
-			n.prepMan.prepare(prepMsg, 0)
-		}
+		n.getLocalNode(prepMsg.Color).Prepare(prepMsg)
 	}
 }
 

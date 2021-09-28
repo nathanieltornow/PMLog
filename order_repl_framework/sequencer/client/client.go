@@ -31,22 +31,12 @@ func NewClient(IP string) (*Client, error) {
 	return client, nil
 }
 
-func (c *Client) MakeOrderRequests() chan<- *sequencerpb.OrderRequest {
-	return c.oReqC
+func (c *Client) MakeOrderRequest(oReq *sequencerpb.OrderRequest) {
+	c.oReqC <- oReq
 }
 
-func (c *Client) GetOrderResponses() <-chan *sequencerpb.OrderResponse {
-	return c.oRspC
-}
-
-func (c *Client) Stop() error {
-	err := c.stream.CloseSend()
-	if err != nil {
-		return err
-	}
-	close(c.oRspC)
-	close(c.oReqC)
-	return nil
+func (c *Client) GetNextOrderResponse() *sequencerpb.OrderResponse {
+	return <-c.oRspC
 }
 
 func (c *Client) sendOReqs() {

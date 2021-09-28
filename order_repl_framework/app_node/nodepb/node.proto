@@ -5,17 +5,14 @@ option go_package = "github.com/nathanieltornow/PMLog/order_repl_framework/app_n
 
 service Node {
   rpc Register(RegisterRequest) returns (Empty);
-  rpc Prepare(stream BatchedPrep) returns (Empty);
-}
-
-message BatchedPrep {
-  repeated Prep preps = 1;
+  rpc Prepare(stream Prep) returns (Empty);
 }
 
 message Prep {
   uint64 localToken = 1;
   uint32 color = 2;
-  string content = 3;
+  uint32 numOfRecords = 3;
+  repeated string contents = 4;
 }
 
 message RegisterRequest {
