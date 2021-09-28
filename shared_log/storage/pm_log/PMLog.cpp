@@ -118,6 +118,7 @@ cppPMLog::cppPMLog(pool<root> pop) {
 		pmem::obj::transaction::run(pop, [&] {
 			this->pop = pop;
 			this->highest_gsn = 0;
+			this->lowest_gsn = 0;
 			lsnPptr = make_persistent<LSNmap>();
 			gsnPptr = make_persistent<GSNmap>();
 		});
@@ -207,12 +208,15 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 		res = this->lsnPptr->find(acc, lsn);
 
 		if (res) {
+			uint64_t tmp_highest_gsn = this->highest_gsn.get_ro();
+			
 			persistent_ptr<PString> record = acc->second;
 			if (!(this->gsnPptr->insert(GSNmap::value_type(gsn, record))))
 				return -2;
 			
-			this->highest_gsn = gsn;
-			this->pop.get_rw().persist(this->highest_gsn);
+			if ( __atomic_compare_exchange_n(&(this->highest_gsn.get_rw()), &tmp_highest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+				this->pop.get_rw().persist(this->highest_gsn);
+			
 			acc.release();
 			this->lsnPptr->erase(lsn);
 			logCache.Append(record->data(), gsn); 
@@ -230,11 +234,12 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 }
 
 uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
-	if (gsn > this->highest_gsn.get_ro())
+	if (gsn > this->highest_gsn.get_ro() || gsn < this->lowest_gsn.get_ro())
 		return 0;
 	
-	uint64_t next_gsn;
-	if (next_gsn = logCache.Read(gsn, storage))
+	uint64_t next_gsn = logCache.Read(gsn, storage);
+	
+	if (next_gsn != gsn)
 		return next_gsn;
 	else {
 		std::thread tmp(&cppPMLog::cacheRecords, this, this, gsn);
@@ -268,8 +273,20 @@ int cppPMLog::Trim(uint64_t gsn) {
 		for (it = this->gsnPptr->begin(); it != this->gsnPptr->end(); it++) {
 			if (it->first < gsn) {
 				this->gsnPptr->erase(it->first);
+				logCache.Erase(it->first);
 			}
 		}
+		
+		uint64_t tmp_highest_gsn = this->highest_gsn.get_ro();
+		uint64_t tmp_lowest_gsn = this->lowest_gsn.get_ro();
+		
+		if (gsn == tmp_highest_gsn) {
+			if( __atomic_compare_exchange_n(&(this->highest_gsn.get_rw()), &tmp_highest_gsn, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+				this->pop.get_rw().persist(this->highest_gsn);
+		}
+		
+		if( __atomic_compare_exchange_n(&(this->lowest_gsn.get_rw()), &tmp_lowest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+			this->pop.get_rw().persist(this->lowest_gsn);		
 		
 		return 0;
 	}
