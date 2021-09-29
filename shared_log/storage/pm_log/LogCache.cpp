@@ -28,18 +28,21 @@ uint64_t LogCache::next_gsn(uint64_t gsn) {
 
 int LogCache::Append(std::string record, uint64_t gsn) {
 	try {		
-		if (this->logCachePtr->size() == MAX_CACHE_SIZE) {
-			this->logCachePtr->erase(this->lowest_gsn);
-			uint64_t tmp = this->next_gsn(this->lowest_gsn);
+		while (this->logCachePtr->size() >= MAX_CACHE_SIZE) {
 			
-			if (tmp != gsn)
-				this->lowest_gsn = tmp;
+			if (this->logCachePtr->erase(this->lowest_gsn)) {
+				uint64_t tmp = this->next_gsn(this->lowest_gsn);
+				uint64_t tmp_lowest_gsn = this->next_gsn(this->lowest_gsn);
+			
+				__atomic_compare_exchange_n(&(this->lowest_gsn), &tmp_lowest_gsn, tmp, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
+			}
 		}
 		
         if (!(this->logCachePtr->insert(std::make_pair(gsn, record))))
 			return -1;		
 		
-		this->highest_gsn = gsn;
+		uint64_t tmp_highest_gsn = this->highest_gsn;
+		__atomic_compare_exchange_n(&(this->highest_gsn), &tmp_highest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST);
 		
         return 0;
     }
@@ -61,6 +64,19 @@ uint64_t LogCache::Read(uint64_t gsn, char *storage) {
         strcpy(storage, acc->second.c_str());
 
         return ret;
+    }
+    catch (const std::runtime_error &e){
+		std::cerr << e.what();
+		exit(-1);
+	}	
+}
+
+int LogCache::Erase(uint64_t gsn) {
+	 try {
+        if (!(this->logCachePtr->erase(gsn)))
+            return 0;
+		else
+			return 1;
     }
     catch (const std::runtime_error &e){
 		std::cerr << e.what();

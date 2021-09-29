@@ -25,6 +25,7 @@ private:
 	persistent_ptr<LSNmap> lsnPptr;
     persistent_ptr<GSNmap> gsnPptr;	
 	p<uint64_t> highest_gsn;
+	p<uint64_t> lowest_gsn;
 	void cacheRecords(cppPMLog *log, uint64_t gsn);
 public:
 	p<pool<root>> pop;
