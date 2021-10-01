@@ -3,57 +3,52 @@ package sequencer
 import (
 	"fmt"
 	seq_client "github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/client"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/local_sequencer"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"sync"
-	"time"
-)
-
-const (
-	heartBeatInterval = time.Second
-	batchingInterval  = time.Second
 )
 
 type Sequencer struct {
 	sequencerpb.UnimplementedSequencerServer
 
-	id     uint32
-	epoch  uint32
-	root   bool
-	leader bool
-	color  uint32
+	id    uint32
+	epoch uint32
+	root  bool
+	color uint32
 
 	sn   uint32
 	snMu sync.Mutex
 
 	parentClient *seq_client.Client
 
-	oReqCache   map[uint64]*sequencerpb.OrderRequest
-	oReqCacheMu sync.Mutex
+	localSeqs   map[uint32]*local_sequencer.LocalSequencer
+	localSeqsMu sync.RWMutex
 
-	oRspCs   map[uint32]chan *sequencerpb.OrderResponse
+	broadcastCh chan *sequencerpb.OrderResponse
+
+	oRspCs   map[idColorTuple]chan *sequencerpb.OrderResponse
 	oRspCsID uint32
 	oRspCsMu sync.RWMutex
 
 	oReqCIn chan *sequencerpb.OrderRequest
 }
 
-func NewSequencer(root bool, leader bool, color uint32) *Sequencer {
+func NewSequencer(root bool, color uint32) *Sequencer {
 	s := new(Sequencer)
-	// todo (hotfix)
-	s.leader = true
 	s.root = root
 	s.color = color
-	s.oReqCache = make(map[uint64]*sequencerpb.OrderRequest)
-	s.oRspCs = make(map[uint32]chan *sequencerpb.OrderResponse)
-	s.oReqCIn = make(chan *sequencerpb.OrderRequest, 256)
+	s.oRspCs = make(map[idColorTuple]chan *sequencerpb.OrderResponse)
+	s.oReqCIn = make(chan *sequencerpb.OrderRequest, 1024)
+	s.localSeqs = make(map[uint32]*local_sequencer.LocalSequencer)
+	s.broadcastCh = make(chan *sequencerpb.OrderResponse, 1024)
 	return s
 }
 
 func (s *Sequencer) Start(IP string, parentIP string) error {
-	if s.root && s.leader {
+	if s.root {
 		return s.startGRPCServer(IP)
 	}
 
@@ -76,15 +71,7 @@ func (s *Sequencer) startGRPCServer(IP string) error {
 	sequencerpb.RegisterSequencerServer(server, s)
 
 	go s.handleOrderRequests()
-
-	go func() {
-		for {
-			<-time.After(10 * time.Second)
-			s.snMu.Lock()
-			logrus.Infoln("Sn:", s.sn)
-			s.snMu.Unlock()
-		}
-	}()
+	go s.broadcastOrderResponses()
 
 	logrus.Infoln("starting sequencer on ", IP)
 	if err := server.Serve(lis); err != nil {
@@ -96,18 +83,25 @@ func (s *Sequencer) startGRPCServer(IP string) error {
 func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error {
 	oRspC := make(chan *sequencerpb.OrderResponse, 256)
 
-	s.oRspCsMu.Lock()
-	id := s.oRspCsID
-	s.oRspCs[s.oRspCsID] = oRspC
-	s.oRspCsID++
-	s.oRspCsMu.Unlock()
+	first := true
+	var ict idColorTuple
+
 	go s.forwardOrderResponses(stream, oRspC)
 
 	for {
 		oReq, err := stream.Recv()
+
+		if first {
+			s.oRspCsMu.Lock()
+			ict = idColorTuple{id: s.oRspCsID, color: oReq.OriginColor}
+			s.oRspCs[ict] = oRspC
+			s.oRspCsID++
+			s.oRspCsMu.Unlock()
+			first = false
+		}
 		if err != nil {
 			s.oRspCsMu.Lock()
-			delete(s.oRspCs, id)
+			delete(s.oRspCs, ict)
 			s.oRspCsMu.Unlock()
 			close(oRspC)
 			return err
@@ -122,4 +116,9 @@ func (s *Sequencer) getAndIncSequenceNum(inc uint32) uint64 {
 	res := (uint64(s.epoch) << 32) + uint64(s.sn)
 	s.sn += inc
 	return res
+}
+
+type idColorTuple struct {
+	id    uint32
+	color uint32
 }
