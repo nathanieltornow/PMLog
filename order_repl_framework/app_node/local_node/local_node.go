@@ -25,10 +25,11 @@ type LocalNode struct {
 	ctr         uint32
 	helpCtr     uint32
 
-	comReqCh chan *frame.CommitRequest
-	prepCh   chan *nodepb.Prep
-	oReqCh   chan *sequencerpb.OrderRequest
-	oRspCh   chan *sequencerpb.OrderResponse
+	comReqMu sync.Mutex
+
+	prepCh chan *nodepb.Prep
+	oReqCh chan *sequencerpb.OrderRequest
+	oRspCh chan *sequencerpb.OrderResponse
 
 	ackCh chan *nodepb.Acknowledgement
 
@@ -43,7 +44,6 @@ func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.O
 	ln.peers = peers
 	ln.originColor = color
 	ln.app = app
-	ln.comReqCh = make(chan *frame.CommitRequest, 1024)
 	ln.prepCh = make(chan *nodepb.Prep, 1024)
 	ln.ackCh = make(chan *nodepb.Acknowledgement, 1024)
 	ln.oReqCh = make(chan *sequencerpb.OrderRequest, 1024)
@@ -59,10 +59,13 @@ func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.O
 }
 
 func (ln *LocalNode) PutComReq(comReq *frame.CommitRequest) uint64 {
-	localToken := ln.getNewToken()
+	ln.comReqMu.Lock()
+	localToken := (uint64(ln.id) << 32) + uint64(ln.ctr)
+	ln.ctr++
 	ln.prepM.prepare(&nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}})
 	ln.prepCh <- &nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}}
 	ln.oReqCh <- &sequencerpb.OrderRequest{Lsn: localToken, NumOfRecords: 1, Color: comReq.Color, OriginColor: ln.originColor}
+	ln.comReqMu.Unlock()
 	return localToken
 }
 
