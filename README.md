@@ -5,27 +5,23 @@
 - [Make](https://www.gnu.org/software/make/)
 
 
-### Start a sequencer
+### Start a benchmark (single shard) on Cloudlab
 
-1. Compile
+1. Start the sequencer on one node
+```shell
+go run cmd/start_sequencer/start_sequencer.go
+```
+
+2. Startup the shard
+```shell
+# for ever replica
+go run cmd/server/shard/main.go -order <sequencer-IP> -peers <peer-IPs (comma seperated)>
+```
+
+3. Start a client for a replica
+   1. Modify benchmark/benchmark.config.yaml, that `enpoint: "<replica-IP>:4000"`
+   2. Start the benchmark, which will start at the next minute
    ```shell
-   make seq
+   go run benchmark/shared_log/shared_log.go -config benchmark/benchmark.config.yaml 
    ```
 
-2. Start a sequencer
-   ```shell
-   ./seq -IP <ip-address> -color <colorID> [-parIP <parent-IP-address>] [-root] [-leader] 
-   ```
-   ```text
-   Usage of ./seq:
-   -IP string
-   The IP on which the sequencer listens
-   -color int
-   The color which the sequencer represents
-   -leader
-   If the sequencer is a leader and can therefore reply to requests
-   -parIP string
-   The IP of the parent-sequencer
-   -root
-   If the sequencer is the root-sequencer
-   ```
