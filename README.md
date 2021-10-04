@@ -9,7 +9,7 @@
 
 1. Start the sequencer on one node
 ```shell
-go run cmd/start_sequencer/start_sequencer.go
+go run cmd/start_sequencer/start_sequencer.go -root
 ```
 
 2. Startup the shard
