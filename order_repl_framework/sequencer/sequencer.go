@@ -87,7 +87,7 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 	var ict idColorTuple
 
 	go s.forwardOrderResponses(stream, oRspC)
-
+	fmt.Println("got new client")
 	for {
 		oReq, err := stream.Recv()
 		if first {

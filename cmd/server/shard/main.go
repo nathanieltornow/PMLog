@@ -29,10 +29,11 @@ func main() {
 		logrus.Fatalln(err)
 	}
 	var peerList []string
+	endPeerList := make([]string, 0)
 	if *peerIPs != "" {
 		peerList = strings.Split(*peerIPs, ",")
 		for _, peer := range peerList {
-			peer += ":5000"
+			endPeerList = append(endPeerList, peer+":5000")
 		}
 	}
 	fmt.Println(peerList)
