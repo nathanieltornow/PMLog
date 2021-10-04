@@ -1,46 +1,33 @@
 package shared_log
 
-import (
-	"github.com/sirupsen/logrus"
-)
-
-type newRecord struct {
-	findToken uint64
-	record    string
-	color     uint32
-	gsn       chan uint64
-}
-
-func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string, findToken uint64) error {
+func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string) error {
 	if err := sl.log.Append(content, localToken); err != nil {
 		return err
 	}
-	sl.localToFindTokenMu.Lock()
-	sl.localToFindToken[localToken] = findToken
-	sl.localToFindTokenMu.Unlock()
 	return nil
 }
 
-func (sl *SharedLog) Commit(localToken uint64, color uint32, globalToken uint64, isCoordinator bool) error {
+func (sl *SharedLog) Commit(localToken uint64, color uint32, globalToken uint64) error {
 	// TODO color
 	if err := sl.log.Commit(localToken, globalToken); err != nil {
 		return err
 	}
+	return nil
+}
 
-	if isCoordinator {
-		sl.localToFindTokenMu.Lock()
-		findToken, ok := sl.localToFindToken[localToken]
-		sl.localToFindTokenMu.Unlock()
-
-		if !ok {
-			logrus.Fatalln("Failed to find token")
-		}
-
+func (sl *SharedLog) Acknowledge(localToken uint64, color uint32, globalToken uint64) error {
+	defer func() {
 		sl.pendingAppendsMu.Lock()
-		sl.pendingAppends[findToken] <- globalToken
 		delete(sl.pendingAppends, localToken)
 		sl.pendingAppendsMu.Unlock()
+	}()
+	sl.pendingAppendsMu.Lock()
+	defer sl.pendingAppendsMu.Unlock()
+	p, ok := sl.pendingAppends[localToken]
+	if !ok {
+		p = make(chan uint64, 1)
+		sl.pendingAppends[localToken] = p
 	}
-
+	p <- globalToken
 	return nil
 }

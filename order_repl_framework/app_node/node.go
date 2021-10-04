@@ -137,7 +137,7 @@ func (n *Node) connectToPeer(peerIP string, back bool) error {
 		lN.SetPeers(atomic.LoadUint32(&n.numOfPeers))
 	}
 	n.localNodesMu.RUnlock()
-	fmt.Println("connected with", peerIP)
+	logrus.Infoln("connected with", peerIP)
 	return nil
 }
 

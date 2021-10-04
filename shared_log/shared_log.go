@@ -3,39 +3,40 @@ package shared_log
 import (
 	"context"
 	"fmt"
+	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
+	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node"
 	pb "github.com/nathanieltornow/PMLog/shared_log/shared_logpb"
 	"github.com/nathanieltornow/PMLog/shared_log/storage"
 	"github.com/sirupsen/logrus"
 	"google.golang.org/grpc"
 	"net"
 	"sync"
-	"sync/atomic"
+	"time"
 )
 
 type SharedLog struct {
 	pb.UnimplementedSharedLogServer
 	log storage.Log
 
-	tokenCtr         uint64
+	id    uint32
+	color uint32
+
+	node *app_node.Node
+
 	pendingAppends   map[uint64]chan uint64
 	pendingAppendsMu sync.Mutex
-
-	localToFindToken   map[uint64]uint64
-	localToFindTokenMu sync.Mutex
-
-	newAppends chan *newRecord
 }
 
-func NewSharedLog(log storage.Log) (*SharedLog, error) {
+func NewSharedLog(log storage.Log, id, color uint32) (*SharedLog, error) {
 	sl := new(SharedLog)
+	sl.id = id
+	sl.color = color
 	sl.log = log
 	sl.pendingAppends = make(map[uint64]chan uint64)
-	sl.newAppends = make(chan *newRecord, 1024)
-	sl.localToFindToken = make(map[uint64]uint64)
 	return sl, nil
 }
 
-func (sl *SharedLog) Start(ipAddr string) error {
+func (sl *SharedLog) Start(ipAddr, nodeIP, orderIP string, peerIPs []string) error {
 	lis, err := net.Listen("tcp", ipAddr)
 	if err != nil {
 		return err
@@ -43,6 +44,14 @@ func (sl *SharedLog) Start(ipAddr string) error {
 	server := grpc.NewServer()
 	pb.RegisterSharedLogServer(server, sl)
 
+	node, err := app_node.NewNode(sl.id, sl.color)
+	if err != nil {
+		return err
+	}
+	sl.node = node
+	node.RegisterApp(sl)
+	go node.Start(nodeIP, peerIPs, orderIP)
+	time.Sleep(time.Second)
 	logrus.Infoln("Starting Shared log")
 	if err := server.Serve(lis); err != nil {
 		return fmt.Errorf("failed to start shared log: %v", err)
@@ -51,12 +60,11 @@ func (sl *SharedLog) Start(ipAddr string) error {
 }
 
 func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
-	newToken := atomic.AddUint64(&sl.tokenCtr, 1)
 	waitingGsn := make(chan uint64, 1)
+	localToken := sl.node.MakeCommitRequest(&frame.CommitRequest{Color: req.Color, Content: req.Record})
 	sl.pendingAppendsMu.Lock()
-	sl.pendingAppends[newToken] = waitingGsn
+	sl.pendingAppends[localToken] = waitingGsn
 	sl.pendingAppendsMu.Unlock()
-	sl.newAppends <- &newRecord{findToken: newToken, color: req.Color, gsn: waitingGsn, record: req.Record}
 	// wait for the global-sequence number
 	gsn := <-waitingGsn
 	return &pb.AppendResponse{Gsn: gsn}, nil

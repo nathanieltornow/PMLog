@@ -60,10 +60,10 @@ func (pm *prepManager) executePreparations() {
 				logrus.Fatalln(err)
 			}
 			pm.mu.Lock()
-			waitC, ok := pm.waitCs[prepMsg.LocalToken]
+			waitC, ok := pm.waitCs[prepMsg.LocalToken+uint64(i)]
 			if !ok {
 				waitC = make(chan bool, 1)
-				pm.waitCs[prepMsg.LocalToken] = waitC
+				pm.waitCs[prepMsg.LocalToken+uint64(i)] = waitC
 			}
 			pm.mu.Unlock()
 

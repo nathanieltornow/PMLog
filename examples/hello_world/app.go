@@ -51,7 +51,7 @@ func NewHW() *HelloWorldApp {
 func (h *HelloWorldApp) doStuff() {
 	for i := 0; i < 40; i++ {
 		h.node.MakeCommitRequest(&frame.CommitRequest{Color: 0, Content: "hallo"})
-		time.Sleep(5 * time.Millisecond)
+		time.Sleep(100 * time.Microsecond)
 	}
 	time.Sleep(10 * time.Second)
 }

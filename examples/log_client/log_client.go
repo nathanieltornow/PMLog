@@ -21,6 +21,7 @@ func main() {
 	}
 
 	for i := 0; i < 20; i++ {
+		time.Sleep(time.Second)
 		now := time.Now()
 		resp, err := logClient.Append(0, "Hello")
 		end := time.Since(now)
