@@ -1,7 +1,6 @@
 package shared_log
 
 import (
-	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
 	"github.com/sirupsen/logrus"
 )
 
@@ -12,20 +11,7 @@ type newRecord struct {
 	gsn       chan uint64
 }
 
-func (sl *SharedLog) MakeCommitRequests(ch chan *frame.CommitRequest) error {
-	for newRec := range sl.newAppends {
-		comReq := &frame.CommitRequest{
-			Color:     newRec.color,
-			Content:   newRec.record,
-			FindToken: newRec.findToken,
-		}
-		ch <- comReq
-	}
-	return nil
-}
-
 func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string, findToken uint64) error {
-	// TODO Color
 	if err := sl.log.Append(content, localToken); err != nil {
 		return err
 	}

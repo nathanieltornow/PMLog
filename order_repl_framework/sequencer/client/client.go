@@ -12,13 +12,20 @@ type Client struct {
 	oReqC  chan *sequencerpb.OrderRequest
 }
 
-func NewClient(IP string) (*Client, error) {
+func NewClient(IP string, originColor uint32) (*Client, error) {
 	conn, err := grpc.Dial(IP, grpc.WithInsecure())
 	if err != nil {
 		return nil, err
 	}
 	pbClient := sequencerpb.NewSequencerClient(conn)
+	if err != nil {
+		return nil, err
+	}
 	stream, err := pbClient.GetOrder(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	err = stream.Send(&sequencerpb.OrderRequest{OriginColor: originColor})
 	if err != nil {
 		return nil, err
 	}
@@ -41,6 +48,7 @@ func (c *Client) GetNextOrderResponse() *sequencerpb.OrderResponse {
 
 func (c *Client) sendOReqs() {
 	for oReq := range c.oReqC {
+
 		err := c.stream.Send(oReq)
 		if err != nil {
 			return

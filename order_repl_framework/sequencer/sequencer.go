@@ -52,7 +52,7 @@ func (s *Sequencer) Start(IP string, parentIP string) error {
 		return s.startGRPCServer(IP)
 	}
 
-	client, err := seq_client.NewClient(parentIP)
+	client, err := seq_client.NewClient(parentIP, s.color)
 	if err != nil {
 		return fmt.Errorf("failed to connect to parent: %v", err)
 	}
@@ -90,7 +90,6 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 
 	for {
 		oReq, err := stream.Recv()
-
 		if first {
 			s.oRspCsMu.Lock()
 			ict = idColorTuple{id: s.oRspCsID, color: oReq.OriginColor}

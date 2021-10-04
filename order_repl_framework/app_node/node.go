@@ -13,12 +13,6 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
-	"time"
-)
-
-const (
-	maxPrepMsgSize    = 128
-	prepBatchInterval = 10 * time.Microsecond
 )
 
 type Node struct {
@@ -41,25 +35,34 @@ type Node struct {
 
 	orderClient *order_client.Client
 
+	ackCh          chan *nodepb.Acknowledgement
+	ackBroadCast   map[uint32]chan *nodepb.Acknowledgement
+	ackBroadCastMu sync.RWMutex
+	numOfPeers     uint32
+
 	helpCtr uint32
 }
 
-func NewNode(id, color uint32, app frame.Application) (*Node, error) {
+func NewNode(id, color uint32) (*Node, error) {
 	node := new(Node)
-	node.app = app
 	node.id = id
 	node.color = color
-	node.prepareCh = make(chan *nodepb.Prep)
+	node.prepareCh = make(chan *nodepb.Prep, 1024)
 	node.prepStreams = make(map[uint32]nodepb.Node_PrepareClient)
 	node.waitingORespCh = make(chan *seqpb.OrderResponse, 1024)
 	node.localNodes = make(map[uint32]*local_node.LocalNode)
-
+	node.ackCh = make(chan *nodepb.Acknowledgement)
+	node.ackBroadCast = make(map[uint32]chan *nodepb.Acknowledgement)
 	return node, nil
+}
+
+func (n *Node) RegisterApp(app frame.Application) {
+	n.app = app
 }
 
 func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error {
 	n.ipAddr = ipAddr
-	orderClient, err := order_client.NewClient(orderIP)
+	orderClient, err := order_client.NewClient(orderIP, n.color)
 	if err != nil {
 		return err
 	}
@@ -71,7 +74,7 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 		errC <- err
 	}()
 
-	go n.handleAppCommitRequests()
+	go n.broadcastPrepareMsgs()
 	go n.handleOrderResponses()
 
 	for _, peerIp := range peerIpAddrs {
@@ -80,6 +83,7 @@ func (n *Node) Start(ipAddr string, peerIpAddrs []string, orderIP string) error 
 			return err
 		}
 	}
+	n.addNewLocalNode(0)
 	err = <-errC
 	return err
 }
@@ -115,13 +119,25 @@ func (n *Node) connectToPeer(peerIP string, back bool) error {
 	n.prepStreams[id] = prepStream
 	n.prepStreamsMu.Unlock()
 
+	ackStream, err := client.GetAcknowledgements(context.Background(), &nodepb.AcknowledgeRequest{ID: n.id})
+	if err != nil {
+		return err
+	}
+	go n.handleAcks(ackStream)
+
 	if back {
 		_, err = client.Register(context.Background(), &nodepb.RegisterRequest{IP: n.ipAddr})
 		if err != nil {
 			return err
 		}
 	}
-
+	atomic.AddUint32(&n.numOfPeers, 1)
+	n.localNodesMu.RLock()
+	for _, lN := range n.localNodes {
+		lN.SetPeers(atomic.LoadUint32(&n.numOfPeers))
+	}
+	n.localNodesMu.RUnlock()
+	fmt.Println("connected with", peerIP)
 	return nil
 }
 
@@ -130,7 +146,7 @@ func (n *Node) addNewLocalNode(color uint32) *local_node.LocalNode {
 	defer n.localNodesMu.Unlock()
 	ln, ok := n.localNodes[color]
 	if !ok {
-		ln = local_node.NewLocalNode(n.id, n.color, n.app, n.makePrepareMsg, n.orderClient.MakeOrderRequest)
+		ln = local_node.NewLocalNode(n.id, atomic.LoadUint32(&n.numOfPeers), n.color, n.app, n.makePrepareMsg, n.orderClient.MakeOrderRequest, n.sendAck)
 		n.localNodes[color] = ln
 	}
 	return ln

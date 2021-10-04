@@ -20,6 +20,7 @@ const _ = grpc.SupportPackageIsVersion7
 type NodeClient interface {
 	Register(ctx context.Context, in *RegisterRequest, opts ...grpc.CallOption) (*Empty, error)
 	Prepare(ctx context.Context, opts ...grpc.CallOption) (Node_PrepareClient, error)
+	GetAcknowledgements(ctx context.Context, in *AcknowledgeRequest, opts ...grpc.CallOption) (Node_GetAcknowledgementsClient, error)
 }
 
 type nodeClient struct {
@@ -73,12 +74,45 @@ func (x *nodePrepareClient) CloseAndRecv() (*Empty, error) {
 	return m, nil
 }
 
+func (c *nodeClient) GetAcknowledgements(ctx context.Context, in *AcknowledgeRequest, opts ...grpc.CallOption) (Node_GetAcknowledgementsClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Node_ServiceDesc.Streams[1], "/app_node.Node/GetAcknowledgements", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &nodeGetAcknowledgementsClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
+}
+
+type Node_GetAcknowledgementsClient interface {
+	Recv() (*Acknowledgement, error)
+	grpc.ClientStream
+}
+
+type nodeGetAcknowledgementsClient struct {
+	grpc.ClientStream
+}
+
+func (x *nodeGetAcknowledgementsClient) Recv() (*Acknowledgement, error) {
+	m := new(Acknowledgement)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
 // NodeServer is the server API for Node service.
 // All implementations must embed UnimplementedNodeServer
 // for forward compatibility
 type NodeServer interface {
 	Register(context.Context, *RegisterRequest) (*Empty, error)
 	Prepare(Node_PrepareServer) error
+	GetAcknowledgements(*AcknowledgeRequest, Node_GetAcknowledgementsServer) error
 	mustEmbedUnimplementedNodeServer()
 }
 
@@ -91,6 +125,9 @@ func (UnimplementedNodeServer) Register(context.Context, *RegisterRequest) (*Emp
 }
 func (UnimplementedNodeServer) Prepare(Node_PrepareServer) error {
 	return status.Errorf(codes.Unimplemented, "method Prepare not implemented")
+}
+func (UnimplementedNodeServer) GetAcknowledgements(*AcknowledgeRequest, Node_GetAcknowledgementsServer) error {
+	return status.Errorf(codes.Unimplemented, "method GetAcknowledgements not implemented")
 }
 func (UnimplementedNodeServer) mustEmbedUnimplementedNodeServer() {}
 
@@ -149,6 +186,27 @@ func (x *nodePrepareServer) Recv() (*Prep, error) {
 	return m, nil
 }
 
+func _Node_GetAcknowledgements_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(AcknowledgeRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
+	}
+	return srv.(NodeServer).GetAcknowledgements(m, &nodeGetAcknowledgementsServer{stream})
+}
+
+type Node_GetAcknowledgementsServer interface {
+	Send(*Acknowledgement) error
+	grpc.ServerStream
+}
+
+type nodeGetAcknowledgementsServer struct {
+	grpc.ServerStream
+}
+
+func (x *nodeGetAcknowledgementsServer) Send(m *Acknowledgement) error {
+	return x.ServerStream.SendMsg(m)
+}
+
 // Node_ServiceDesc is the grpc.ServiceDesc for Node service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
@@ -166,6 +224,11 @@ var Node_ServiceDesc = grpc.ServiceDesc{
 			StreamName:    "Prepare",
 			Handler:       _Node_Prepare_Handler,
 			ClientStreams: true,
+		},
+		{
+			StreamName:    "GetAcknowledgements",
+			Handler:       _Node_GetAcknowledgements_Handler,
+			ServerStreams: true,
 		},
 	},
 	Metadata: "nodepb/node.proto",

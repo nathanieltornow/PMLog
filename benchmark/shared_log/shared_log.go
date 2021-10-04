@@ -88,7 +88,6 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 		case <-stop:
 			return
 		case <-ticker:
-
 			start := time.Now()
 			_, err := client.Append(0, "Hello")
 			latencySum += time.Since(start)

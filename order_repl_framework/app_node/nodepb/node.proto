@@ -6,6 +6,7 @@ option go_package = "github.com/nathanieltornow/PMLog/order_repl_framework/app_n
 service Node {
   rpc Register(RegisterRequest) returns (Empty);
   rpc Prepare(stream Prep) returns (Empty);
+  rpc GetAcknowledgements(AcknowledgeRequest) returns (stream Acknowledgement);
 }
 
 message Prep {
@@ -17,6 +18,17 @@ message Prep {
 
 message RegisterRequest {
   string IP = 1;
+}
+
+message AcknowledgeRequest {
+  uint32 ID = 1;
+}
+
+message Acknowledgement {
+  uint64 localToken = 1;
+  uint32 color = 2;
+  uint64 globalToken = 3;
+  uint32 numOfRecords = 4;
 }
 
 message Empty {}

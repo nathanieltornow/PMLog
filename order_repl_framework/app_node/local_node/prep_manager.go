@@ -13,7 +13,7 @@ type prepManager struct {
 
 	waitCs map[uint64]chan bool
 
-	prepQueue chan *prepMsgFindToken
+	prepQueue chan *nodepb.Prep
 }
 
 type prepMsgFindToken struct {
@@ -25,7 +25,7 @@ func newPrepManager(app frame.Application) *prepManager {
 	pm := new(prepManager)
 	pm.app = app
 	pm.waitCs = make(map[uint64]chan bool)
-	pm.prepQueue = make(chan *prepMsgFindToken, 1024)
+	pm.prepQueue = make(chan *nodepb.Prep, 1024)
 
 	go pm.executePreparations()
 
@@ -49,21 +49,21 @@ func (pm *prepManager) waitForPrep(localToken uint64) {
 	<-waitC
 }
 
-func (pm *prepManager) prepare(prepMsg *nodepb.Prep, findToken uint64) {
-	pm.prepQueue <- &prepMsgFindToken{prepMsg: prepMsg, findToken: findToken}
+func (pm *prepManager) prepare(prepMsg *nodepb.Prep) {
+	pm.prepQueue <- prepMsg
 }
 
 func (pm *prepManager) executePreparations() {
-	for prepMsgFT := range pm.prepQueue {
-		for i, content := range prepMsgFT.prepMsg.Contents {
-			if err := pm.app.Prepare(prepMsgFT.prepMsg.LocalToken+uint64(i), prepMsgFT.prepMsg.Color, content, prepMsgFT.findToken); err != nil {
+	for prepMsg := range pm.prepQueue {
+		for i, content := range prepMsg.Contents {
+			if err := pm.app.Prepare(prepMsg.LocalToken+uint64(i), prepMsg.Color, content); err != nil {
 				logrus.Fatalln(err)
 			}
 			pm.mu.Lock()
-			waitC, ok := pm.waitCs[prepMsgFT.prepMsg.LocalToken]
+			waitC, ok := pm.waitCs[prepMsg.LocalToken]
 			if !ok {
 				waitC = make(chan bool, 1)
-				pm.waitCs[prepMsgFT.prepMsg.LocalToken] = waitC
+				pm.waitCs[prepMsg.LocalToken] = waitC
 			}
 			pm.mu.Unlock()
 

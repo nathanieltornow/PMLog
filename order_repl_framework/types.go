@@ -6,19 +6,22 @@ import (
 )
 
 type Application interface {
-	MakeCommitRequests(chan *CommitRequest) error
+	Prepare(localToken uint64, color uint32, content string) error
 
-	Prepare(localToken uint64, color uint32, content string, findToken uint64) error
+	Commit(localToken uint64, color uint32, globalToken uint64) error
 
-	Commit(localToken uint64, color uint32, globalToken uint64, isCoordinator bool) error
+	Acknowledge(localToken uint64, color uint32, globalToken uint64) error
 }
 
 type CommitRequest struct {
-	Color     uint32
-	Content   string
-	FindToken uint64
+	Color   uint32
+	Content string
 }
+
+type MakeCommReqFunc func(commReq *CommitRequest) uint64
 
 type OnPrepFunc func(prep *nodepb.Prep)
 
 type OnOrderFunc func(oReq *sequencerpb.OrderRequest)
+
+type OnCommFunc func(ack *nodepb.Acknowledgement)

@@ -1,10 +1,12 @@
 package local_node
 
 import (
+	"fmt"
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -14,75 +16,106 @@ const (
 )
 
 type LocalNode struct {
+	mu sync.Mutex
+
 	app frame.Application
 
-	id      uint32
-	color   uint32
-	ctr     uint32
-	helpCtr uint32
+	id          uint32
+	peers       uint32
+	originColor uint32
+	ctr         uint32
+	helpCtr     uint32
 
 	comReqCh chan *frame.CommitRequest
 	prepCh   chan *nodepb.Prep
 	oReqCh   chan *sequencerpb.OrderRequest
 	oRspCh   chan *sequencerpb.OrderResponse
 
+	ackCh chan *nodepb.Acknowledgement
+
+	recentlyCommitted map[uint64]chan bool
+
 	prepM *prepManager
 }
 
-func NewLocalNode(id, color uint32, app frame.Application, onPrep frame.OnPrepFunc, onOrder frame.OnOrderFunc) *LocalNode {
+func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.OnPrepFunc, onOrder frame.OnOrderFunc, onComm frame.OnCommFunc) *LocalNode {
 	ln := new(LocalNode)
 	ln.id = id
-	ln.color = color
+	ln.peers = peers
+	ln.originColor = color
 	ln.app = app
 	ln.comReqCh = make(chan *frame.CommitRequest, 1024)
 	ln.prepCh = make(chan *nodepb.Prep, 1024)
+	ln.ackCh = make(chan *nodepb.Acknowledgement, 1024)
 	ln.oReqCh = make(chan *sequencerpb.OrderRequest, 1024)
 	ln.oRspCh = make(chan *sequencerpb.OrderResponse, 1024)
 	ln.prepM = newPrepManager(app)
+	ln.recentlyCommitted = make(map[uint64]chan bool)
 
-	go ln.commit()
-	go ln.handleCommitRequests()
-	go ln.batchPrepMsg(batchInterval, onPrep)
-	go ln.batchOrderRequest(batchInterval, onOrder)
+	go ln.handleOrderResponses(onComm)
+	go ln.batchPrepMessages(batchInterval, onPrep)
+	go ln.batchOrderRequests(batchInterval, onOrder)
+	go ln.handleAcknowledgments()
 	return ln
 }
 
-func (ln *LocalNode) PutComReq(comReq *frame.CommitRequest) {
-	ln.comReqCh <- comReq
+func (ln *LocalNode) PutComReq(comReq *frame.CommitRequest) uint64 {
+	localToken := ln.getNewToken()
+	ln.prepM.prepare(&nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}})
+	ln.prepCh <- &nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}}
+	ln.oReqCh <- &sequencerpb.OrderRequest{Lsn: localToken, NumOfRecords: 1, Color: comReq.Color, OriginColor: ln.originColor}
+	return localToken
 }
 
 func (ln *LocalNode) Prepare(prepMsg *nodepb.Prep) {
-	ln.prepM.prepare(prepMsg, 0)
+	ln.prepM.prepare(prepMsg)
 }
 
 func (ln *LocalNode) PutOrderResponse(oRsp *sequencerpb.OrderResponse) {
 	ln.oRspCh <- oRsp
 }
 
-func (ln *LocalNode) commit() {
-	for oRsp := range ln.oRspCh {
-		isCoor := uint32(oRsp.Lsn>>32) == ln.id
-		for i := uint64(0); i < uint64(oRsp.NumOfRecords); i++ {
-			ln.prepM.waitForPrep(oRsp.Lsn + i)
-			if err := ln.app.Commit(oRsp.Lsn+i, oRsp.Color, oRsp.Gsn+i, isCoor); err != nil {
-				logrus.Fatalln(err)
+func (ln *LocalNode) PutAcknowledgment(ack *nodepb.Acknowledgement) {
+	ln.ackCh <- ack
+}
+
+func (ln *LocalNode) SetPeers(peers uint32) {
+	atomic.StoreUint32(&ln.peers, peers)
+}
+
+func (ln *LocalNode) handleAcknowledgments() {
+	numOfAcks := make(map[uint64]uint32)
+	for ack := range ln.ackCh {
+		numOfAcks[ack.GlobalToken]++
+		if numOfAcks[ack.GlobalToken] == atomic.LoadUint32(&ln.peers) {
+			for i := uint64(0); i < uint64(ack.NumOfRecords); i++ {
+				ln.waitForCommit(ack.GlobalToken + i)
+				if err := ln.app.Acknowledge(ack.LocalToken+i, ack.Color, ack.LocalToken+i); err != nil {
+					logrus.Fatalln(err)
+				}
 			}
 		}
 	}
 }
 
-func (ln *LocalNode) handleCommitRequests() {
-	for comReq := range ln.comReqCh {
-		localToken := ln.getNewToken()
-		ln.prepM.prepare(
-			&nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}}, comReq.FindToken)
-		ln.prepCh <- &nodepb.Prep{LocalToken: localToken, Color: comReq.Color, Contents: []string{comReq.Content}}
-		ln.oReqCh <- &sequencerpb.OrderRequest{Lsn: localToken, NumOfRecords: 1, Color: comReq.Color, OriginColor: ln.color}
+func (ln *LocalNode) handleOrderResponses(onComm frame.OnCommFunc) {
+	for oRsp := range ln.oRspCh {
+		fmt.Println(oRsp)
+		for i := uint64(0); i < uint64(oRsp.NumOfRecords); i++ {
+			ln.prepM.waitForPrep(oRsp.Lsn + i)
+			ln.commit(oRsp.Lsn+i, oRsp.Color, oRsp.Gsn+i)
+		}
+		if uint32(oRsp.Lsn>>32) != ln.id && oRsp.NumOfRecords > 0 {
+			onComm(&nodepb.Acknowledgement{Color: oRsp.Color,
+				NumOfRecords: oRsp.NumOfRecords,
+				LocalToken:   oRsp.Lsn,
+				GlobalToken:  oRsp.Gsn})
+		}
 	}
 }
 
-func (ln *LocalNode) batchPrepMsg(interval time.Duration, onPrep frame.OnPrepFunc) {
-	newBatch := false
+func (ln *LocalNode) batchPrepMessages(interval time.Duration, onPrep frame.OnPrepFunc) {
+	newBatch := true
 	var send <-chan time.Time
 	var current *nodepb.Prep
 
@@ -104,8 +137,8 @@ func (ln *LocalNode) batchPrepMsg(interval time.Duration, onPrep frame.OnPrepFun
 	}
 }
 
-func (ln *LocalNode) batchOrderRequest(interval time.Duration, onOrder frame.OnOrderFunc) {
-	newBatch := false
+func (ln *LocalNode) batchOrderRequests(interval time.Duration, onOrder frame.OnOrderFunc) {
+	newBatch := true
 	var send <-chan time.Time
 	var current *sequencerpb.OrderRequest
 
@@ -128,4 +161,29 @@ func (ln *LocalNode) batchOrderRequest(interval time.Duration, onOrder frame.OnO
 
 func (ln *LocalNode) getNewToken() uint64 {
 	return (uint64(ln.id) << 32) + uint64(atomic.AddUint32(&ln.ctr, 1))
+}
+
+func (ln *LocalNode) commit(lsn uint64, color uint32, gsn uint64) {
+	if err := ln.app.Commit(lsn, color, gsn); err != nil {
+		logrus.Fatalln(err)
+	}
+	ln.mu.Lock()
+	ch, ok := ln.recentlyCommitted[gsn]
+	if !ok {
+		ch = make(chan bool, 1)
+		ln.recentlyCommitted[gsn] = ch
+	}
+	ln.mu.Unlock()
+	ch <- true
+}
+
+func (ln *LocalNode) waitForCommit(gsn uint64) {
+	ln.mu.Lock()
+	ch, ok := ln.recentlyCommitted[gsn]
+	if !ok {
+		ch = make(chan bool, 1)
+		ln.recentlyCommitted[gsn] = ch
+	}
+	ln.mu.Unlock()
+	<-ch
 }
