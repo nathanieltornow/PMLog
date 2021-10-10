@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"github.com/nathanieltornow/PMLog/shared_log"
-	"github.com/nathanieltornow/PMLog/shared_log/storage/dummy_log"
+	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log"
 	"github.com/sirupsen/logrus"
 	"strings"
 )
@@ -19,7 +19,7 @@ var (
 func main() {
 	flag.Parse()
 
-	log, err := dummy_log.NewDummyLog()
+	log, err := mem_log.NewLog()
 	if err != nil {
 		logrus.Fatalln(err)
 	}
