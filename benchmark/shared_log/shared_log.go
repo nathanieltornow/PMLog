@@ -16,8 +16,8 @@ var (
 )
 
 type benchmarkResult struct {
-	latency    time.Duration
-	throughput int
+	avgLatency time.Duration
+	numAppends int
 }
 
 func main() {
@@ -50,17 +50,17 @@ func main() {
 				go benchmarkLog(endpoint, config.Runtime, interval)
 			}
 		}
-		overallThroughput := 0
-		latencySum := time.Duration(0)
+		overallAppends := 0
+		weightedLatencySum := time.Duration(0)
 		for i := 0; i < t*numEndpoints; i++ {
 			res := <-resultC
-			overallThroughput += res.throughput
-			latencySum += res.latency
+			overallAppends += res.numAppends
+			weightedLatencySum += time.Duration(res.avgLatency.Nanoseconds() * int64(res.numAppends))
 		}
-		ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(t*numEndpoints))
-		throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
+		ovrLatency := time.Duration(weightedLatencySum.Nanoseconds() / int64(overallAppends))
+		throughputPerSecond := float64(overallAppends) / config.Runtime.Seconds()
 		fmt.Printf("-----\nLatency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
-		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", throughputPerSecond, ovrLatency.Microseconds())); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", throughputPerSecond, ovrLatency)); err != nil {
 			logrus.Fatalln(err)
 		}
 	}
@@ -73,30 +73,35 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 		logrus.Fatalln(err)
 	}
 
-	var latencySum time.Duration
-	var throughput int
+	var appends int
 
 	defer func() {
-		avgLatency := time.Duration(latencySum.Nanoseconds() / int64(throughput))
-		resultC <- &benchmarkResult{latency: avgLatency, throughput: throughput}
+		avgLatency := time.Duration(runtime.Nanoseconds() / int64(appends))
+		resultC <- &benchmarkResult{avgLatency: avgLatency, numAppends: appends}
 	}()
 
 	ticker := time.Tick(interval)
 	<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	stop := time.After(runtime)
-
 	for {
 		select {
 		case <-stop:
 			return
 		case <-ticker:
-			start := time.Now()
 			_, err := client.Append(0, "Hello")
-			latencySum += time.Since(start)
-			throughput++
 			if err != nil {
 				logrus.Fatalln(err)
 			}
+			appends++
 		}
 	}
+}
+
+func getAvg(latencies []time.Duration) int {
+	sum := time.Duration(0)
+	for _, lat := range latencies {
+		sum += lat
+	}
+	avg := sum.Microseconds() / int64(len(latencies))
+	return int(avg)
 }
