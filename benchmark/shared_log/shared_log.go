@@ -44,25 +44,27 @@ func main() {
 	defer f.Close()
 
 	for t := threads; t < threads+20; t++ {
-		for i := 0; i < t; i++ {
-			go benchmarkLog(config.Endpoint, config.Runtime, interval)
-		}
+		for _, endpoint := range config.Endpoints {
+			for i := 0; i < t; i++ {
+				go benchmarkLog(endpoint, config.Runtime, interval)
+			}
+			overallThroughput := 0
+			latencySum := time.Duration(0)
+			for i := 0; i < t; i++ {
+				res := <-resultC
+				overallThroughput += res.throughput
+				latencySum += res.latency
+			}
+			ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(t))
+			throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
+			fmt.Printf("-----\nLatency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
 
-		overallThroughput := 0
-		latencySum := time.Duration(0)
-		for i := 0; i < t; i++ {
-			res := <-resultC
-			overallThroughput += res.throughput
-			latencySum += res.latency
-		}
-		ovrLatency := time.Duration(latencySum.Nanoseconds() / int64(t))
-		throughputPerSecond := float64(overallThroughput) / config.Runtime.Seconds()
-		fmt.Printf("-----\nLatency: %v\nThroughput (ops/s): %v\n", ovrLatency, throughputPerSecond)
-
-		if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", throughputPerSecond, ovrLatency.Microseconds())); err != nil {
-			logrus.Fatalln(err)
+			if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", throughputPerSecond, ovrLatency.Microseconds())); err != nil {
+				logrus.Fatalln(err)
+			}
 		}
 	}
+
 }
 
 func benchmarkLog(IP string, runtime, interval time.Duration) {

@@ -1,4 +1,7 @@
-endpoint: ":4000" # the IP of the sequencer
-threads: 1 # number of threads that generate requests
-ops: 1000 # operations per second for each thread
+endpoints: # the IP of the shards
+  - "node-1:4000"
+  - "node-2:4000"
+  - "node-3:4000"
+threads: 1 # number of threads that generate requests per shard
+ops: 200 # operations per second for each thread
 runtime: 30s # overall runtime

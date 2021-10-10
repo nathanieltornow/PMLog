@@ -7,10 +7,10 @@ import (
 )
 
 type BenchConfig struct {
-	Ops      int           `yaml:"ops"`
-	Threads  int           `yaml:"threads"`
-	Runtime  time.Duration `yaml:"runtime"`
-	Endpoint string        `yaml:"endpoint"`
+	Ops       int           `yaml:"ops"`
+	Threads   int           `yaml:"threads"`
+	Runtime   time.Duration `yaml:"runtime"`
+	Endpoints []string      `yaml:"endpoint"`
 }
 
 func GetBenchConfig(configFile string) (*BenchConfig, error) {

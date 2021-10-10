@@ -1,6 +1,6 @@
 package mem_log
 
-//#cgo LDFLAGS: -L. -lstorage -ltbb
+//#cgo LDFLAGS: -L. -ltbb
 //#include "Log.h"
 import "C"
 import "unsafe"
