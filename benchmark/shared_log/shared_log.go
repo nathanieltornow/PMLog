@@ -73,10 +73,11 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 		logrus.Fatalln(err)
 	}
 
+	overallLatency := time.Duration(0)
 	var appends int
 
 	defer func() {
-		avgLatency := time.Duration(runtime.Nanoseconds() / int64(appends))
+		avgLatency := time.Duration(overallLatency.Nanoseconds() / int64(appends))
 		resultC <- &benchmarkResult{avgLatency: avgLatency, numAppends: appends}
 	}()
 
@@ -88,7 +89,9 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 		case <-stop:
 			return
 		case <-ticker:
+			start := time.Now()
 			_, err := client.Append(0, "Hello")
+			overallLatency += time.Since(start)
 			if err != nil {
 				logrus.Fatalln(err)
 			}
