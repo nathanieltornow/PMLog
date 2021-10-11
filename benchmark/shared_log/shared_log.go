@@ -112,8 +112,15 @@ func executeBenchmark(IP string, runtime, appendInterval, readInterval time.Dura
 	var reads int
 
 	defer func() {
-		avgAppendLatency := time.Duration(overallAppendLatency.Nanoseconds() / int64(appends))
-		avgReadLatency := time.Duration(overallReadLatency.Nanoseconds() / int64(reads))
+		avgAppendLatency := time.Duration(0)
+		avgReadLatency := time.Duration(0)
+		if reads > 0 {
+			avgReadLatency = time.Duration(overallReadLatency.Nanoseconds() / int64(reads))
+		}
+		if appends > 0 {
+			avgAppendLatency = time.Duration(overallAppendLatency.Nanoseconds() / int64(appends))
+		}
+
 		resultC <- &benchmarkResult{
 			avgAppendLatency: avgAppendLatency,
 			appends:          appends,
@@ -136,12 +143,13 @@ func executeBenchmark(IP string, runtime, appendInterval, readInterval time.Dura
 			return
 		case <-appendTicker:
 			start := time.Now()
-			_, err := client.Append(0, record)
+			gsn, err := client.Append(0, record)
 			overallAppendLatency += time.Since(start)
 			if err != nil {
 				logrus.Fatalln(err)
 			}
 			appends++
+			curGsn = gsn
 		case <-readTicker:
 			if curGsn == 0 {
 				continue
