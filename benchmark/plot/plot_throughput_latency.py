@@ -15,4 +15,6 @@ with open(result_file_path, 'r') as res_file:
     float_res.sort(key=lambda x: x[0])
 
     plt.plot([r[0] for r in float_res], [r[1] for r in float_res], '-')
+    plt.ylabel("Latency ($\mu s)$")
+    plt.xlabel("Throughput")
     plt.show()
