@@ -3,7 +3,9 @@ package main
 import (
 	"flag"
 	"github.com/nathanieltornow/PMLog/shared_log"
+	"github.com/nathanieltornow/PMLog/shared_log/storage"
 	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log"
+	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log_go"
 	"github.com/sirupsen/logrus"
 	"strings"
 	"time"
@@ -16,14 +18,21 @@ var (
 	orderIP  = flag.String("order", ":9000", "")
 	id       = flag.Int("id", 0, "")
 	interval = flag.Duration("interval", 100*time.Microsecond, "")
+	logType  = flag.String("type", "go", "")
 )
 
 func main() {
 	flag.Parse()
+	var err error
+	var log storage.Log
 
-	log, err := mem_log.NewLog()
-	if err != nil {
-		logrus.Fatalln(err)
+	if *logType == "go" {
+		log = mem_log_go.NewMemLogGo()
+	} else {
+		log, err = mem_log.NewLog()
+		if err != nil {
+			logrus.Fatalln(err)
+		}
 	}
 	sharedLog, err := shared_log.NewSharedLog(log, uint32(*id), 1010)
 	if err != nil {
