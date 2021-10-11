@@ -5,7 +5,7 @@ option go_package = "github.com/nathanieltornow/PMLog/shared_log/shared_logpb";
 
 service SharedLog {
   rpc Append(AppendRequest) returns (AppendResponse);
-  rpc Read(ReadRequest) returns (stream ReadResponse);
+  rpc Read(ReadRequest) returns (ReadResponse);
   rpc Trim(TrimRequest) returns (TrimResponse);
 }
 

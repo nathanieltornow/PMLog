@@ -19,7 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SharedLogClient interface {
 	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
-	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (SharedLog_ReadClient, error)
+	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Trim(ctx context.Context, in *TrimRequest, opts ...grpc.CallOption) (*TrimResponse, error)
 }
 
@@ -40,36 +40,13 @@ func (c *sharedLogClient) Append(ctx context.Context, in *AppendRequest, opts ..
 	return out, nil
 }
 
-func (c *sharedLogClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (SharedLog_ReadClient, error) {
-	stream, err := c.cc.NewStream(ctx, &SharedLog_ServiceDesc.Streams[0], "/shared_log.SharedLog/Read", opts...)
+func (c *sharedLogClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
+	out := new(ReadResponse)
+	err := c.cc.Invoke(ctx, "/shared_log.SharedLog/Read", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &sharedLogReadClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
-}
-
-type SharedLog_ReadClient interface {
-	Recv() (*ReadResponse, error)
-	grpc.ClientStream
-}
-
-type sharedLogReadClient struct {
-	grpc.ClientStream
-}
-
-func (x *sharedLogReadClient) Recv() (*ReadResponse, error) {
-	m := new(ReadResponse)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
-		return nil, err
-	}
-	return m, nil
+	return out, nil
 }
 
 func (c *sharedLogClient) Trim(ctx context.Context, in *TrimRequest, opts ...grpc.CallOption) (*TrimResponse, error) {
@@ -86,7 +63,7 @@ func (c *sharedLogClient) Trim(ctx context.Context, in *TrimRequest, opts ...grp
 // for forward compatibility
 type SharedLogServer interface {
 	Append(context.Context, *AppendRequest) (*AppendResponse, error)
-	Read(*ReadRequest, SharedLog_ReadServer) error
+	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Trim(context.Context, *TrimRequest) (*TrimResponse, error)
 	mustEmbedUnimplementedSharedLogServer()
 }
@@ -98,8 +75,8 @@ type UnimplementedSharedLogServer struct {
 func (UnimplementedSharedLogServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Append not implemented")
 }
-func (UnimplementedSharedLogServer) Read(*ReadRequest, SharedLog_ReadServer) error {
-	return status.Errorf(codes.Unimplemented, "method Read not implemented")
+func (UnimplementedSharedLogServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
 }
 func (UnimplementedSharedLogServer) Trim(context.Context, *TrimRequest) (*TrimResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Trim not implemented")
@@ -135,25 +112,22 @@ func _SharedLog_Append_Handler(srv interface{}, ctx context.Context, dec func(in
 	return interceptor(ctx, in, info, handler)
 }
 
-func _SharedLog_Read_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(ReadRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _SharedLog_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ReadRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(SharedLogServer).Read(m, &sharedLogReadServer{stream})
-}
-
-type SharedLog_ReadServer interface {
-	Send(*ReadResponse) error
-	grpc.ServerStream
-}
-
-type sharedLogReadServer struct {
-	grpc.ServerStream
-}
-
-func (x *sharedLogReadServer) Send(m *ReadResponse) error {
-	return x.ServerStream.SendMsg(m)
+	if interceptor == nil {
+		return srv.(SharedLogServer).Read(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/shared_log.SharedLog/Read",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(SharedLogServer).Read(ctx, req.(*ReadRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 func _SharedLog_Trim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -186,16 +160,14 @@ var SharedLog_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SharedLog_Append_Handler,
 		},
 		{
+			MethodName: "Read",
+			Handler:    _SharedLog_Read_Handler,
+		},
+		{
 			MethodName: "Trim",
 			Handler:    _SharedLog_Trim_Handler,
 		},
 	},
-	Streams: []grpc.StreamDesc{
-		{
-			StreamName:    "Read",
-			Handler:       _SharedLog_Read_Handler,
-			ServerStreams: true,
-		},
-	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "shared_logpb/shared_log.proto",
 }

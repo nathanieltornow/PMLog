@@ -16,8 +16,8 @@ var (
 )
 
 type benchmarkResult struct {
-	avgLatency time.Duration
-	numAppends int
+	overallLatency time.Duration
+	numAppends     int
 }
 
 func main() {
@@ -55,7 +55,7 @@ func main() {
 		for i := 0; i < t*numEndpoints; i++ {
 			res := <-resultC
 			overallAppends += res.numAppends
-			weightedLatencySum += time.Duration(res.avgLatency.Nanoseconds() * int64(res.numAppends))
+			weightedLatencySum += time.Duration(res.overallLatency.Nanoseconds() * int64(res.numAppends))
 		}
 		ovrLatency := time.Duration(weightedLatencySum.Nanoseconds() / int64(overallAppends))
 		throughputPerSecond := float64(overallAppends) / config.Runtime.Seconds()
@@ -77,8 +77,8 @@ func benchmarkLog(IP string, runtime, interval time.Duration) {
 	var appends int
 
 	defer func() {
-		avgLatency := time.Duration(overallLatency.Nanoseconds() / int64(appends))
-		resultC <- &benchmarkResult{avgLatency: avgLatency, numAppends: appends}
+		avgLatency := time.Duration(overallLatency.Nanoseconds())
+		resultC <- &benchmarkResult{overallLatency: avgLatency, numAppends: appends}
 	}()
 
 	ticker := time.Tick(interval)

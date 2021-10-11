@@ -36,7 +36,7 @@ func NewSharedLog(log storage.Log, id, color uint32) (*SharedLog, error) {
 	return sl, nil
 }
 
-func (sl *SharedLog) Start(ipAddr, nodeIP, orderIP string, peerIPs []string) error {
+func (sl *SharedLog) Start(ipAddr, nodeIP, orderIP string, peerIPs []string, interval time.Duration) error {
 	lis, err := net.Listen("tcp", ipAddr)
 	if err != nil {
 		return err
@@ -44,7 +44,7 @@ func (sl *SharedLog) Start(ipAddr, nodeIP, orderIP string, peerIPs []string) err
 	server := grpc.NewServer()
 	pb.RegisterSharedLogServer(server, sl)
 
-	node, err := app_node.NewNode(sl.id, sl.color)
+	node, err := app_node.NewNode(sl.id, sl.color, app_node.WithBatchingInterval(interval))
 	if err != nil {
 		return err
 	}
@@ -70,11 +70,20 @@ func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.Appen
 	return &pb.AppendResponse{Gsn: gsn}, nil
 }
 
-func (sl *SharedLog) Read(req *pb.ReadRequest, stream pb.SharedLog_ReadServer) error {
-	return nil
+func (sl *SharedLog) Read(_ context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {
+	record, err := sl.log.Read(req.Gsn)
+	if err != nil {
+		return nil, err
+	}
+	if record == "" {
+		return nil, fmt.Errorf("failed to find record with gsn %v", req.Gsn)
+	}
+	return &pb.ReadResponse{Gsn: req.Gsn, Record: record}, nil
 }
 
 func (sl *SharedLog) Trim(_ context.Context, req *pb.TrimRequest) (*pb.TrimResponse, error) {
-
-	return nil, nil
+	if err := sl.log.Trim(req.Gsn); err != nil {
+		return nil, err
+	}
+	return &pb.TrimResponse{}, nil
 }
