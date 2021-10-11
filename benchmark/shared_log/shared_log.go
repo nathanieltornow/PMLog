@@ -56,7 +56,7 @@ func main() {
 		resultC = make(chan *benchmarkResult, threads*numEndpoints)
 		for _, endpoint := range config.Endpoints {
 			for i := 0; i < threads; i++ {
-				go executeAppendBenchmark(endpoint, config.Runtime, appendInterval, readInterval)
+				go executeBenchmark(endpoint, config.Runtime, appendInterval, readInterval)
 			}
 		}
 
@@ -98,7 +98,7 @@ func main() {
 
 }
 
-func executeAppendBenchmark(IP string, runtime, appendInterval, readInterval time.Duration) {
+func executeBenchmark(IP string, runtime, appendInterval, readInterval time.Duration) {
 	client, err := log_client.NewClient(IP)
 	if err != nil {
 		logrus.Fatalln(err)
