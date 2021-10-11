@@ -28,3 +28,21 @@ func (cl *Client) Append(color uint32, record string) (uint64, error) {
 	}
 	return resp.Gsn, nil
 }
+
+func (cl *Client) Read(color uint32, gsn uint64) (string, error) {
+	req := &pb.ReadRequest{Gsn: gsn}
+	resp, err := cl.pbClient.Read(context.Background(), req)
+	if err != nil {
+		return "", err
+	}
+	return resp.Record, nil
+}
+
+func (cl *Client) Trim(color uint32, gsn uint64) error {
+	req := &pb.TrimRequest{Gsn: gsn}
+	_, err := cl.pbClient.Trim(context.Background(), req)
+	if err != nil {
+		return err
+	}
+	return nil
+}
