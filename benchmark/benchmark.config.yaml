@@ -6,4 +6,4 @@ threads: 1 # number of threads that generate requests per shard
 appends: 950 # appends per second for each thread
 reads: 50 # reads per second for each thread
 runtime: 40s # overall runtime
-times: 10
+times: 5

@@ -45,7 +45,7 @@ func main() {
 	appendInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Appends))
 	readInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Reads))
 
-	f, err := os.OpenFile("result.csv",
+	f, err := os.OpenFile(fmt.Sprintf("results_t%v-n%v-a%v-r%v.csv", threads, numEndpoints, config.Appends, config.Reads),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logrus.Fatalln(err)
@@ -90,8 +90,8 @@ func main() {
 			"-----\nAppend:\nLatency: %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v\nThroughput (ops/s): %v\n",
 			overallAppendLatency, appendThroughput, overallReadLatency, readThroughput)
 
-		if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v \n", overallAppendLatency.Microseconds(),
-			appendThroughput, overallReadLatency.Microseconds(), readThroughput)); err != nil {
+		if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v \n", appendThroughput,
+			overallAppendLatency.Microseconds(), readThroughput, overallReadLatency.Microseconds())); err != nil {
 			logrus.Fatalln(err)
 		}
 	}
