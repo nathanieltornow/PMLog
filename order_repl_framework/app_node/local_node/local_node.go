@@ -88,7 +88,7 @@ func (ln *LocalNode) handleAcknowledgments() {
 		if numOfAcks[ack.GlobalToken] == atomic.LoadUint32(&ln.peers) {
 			for i := uint64(0); i < uint64(ack.NumOfRecords); i++ {
 				ln.waitForCommit(ack.GlobalToken + i)
-				if err := ln.app.Acknowledge(ack.LocalToken+i, ack.Color, ack.LocalToken+i); err != nil {
+				if err := ln.app.Acknowledge(ack.LocalToken+i, ack.Color, ack.GlobalToken+i); err != nil {
 					logrus.Fatalln(err)
 				}
 			}
