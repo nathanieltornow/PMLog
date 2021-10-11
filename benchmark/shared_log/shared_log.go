@@ -19,10 +19,10 @@ var (
 )
 
 type benchmarkResult struct {
-	avgAppendLatency time.Duration
-	appends          int
-	avgReadLatency   time.Duration
-	reads            int
+	overallAppendLatency time.Duration
+	appends              int
+	overallReadLatency   time.Duration
+	reads                int
 }
 
 func main() {
@@ -61,28 +61,28 @@ func main() {
 		}
 
 		overallAppends := 0
-		weightedAppendLatencySum := time.Duration(0)
+		overallAppendLatencySum := time.Duration(0)
 		overallReads := 0
-		weightedReadLatencySum := time.Duration(0)
+		overallReadLatencySum := time.Duration(0)
 		for i := 0; i < threads*numEndpoints; i++ {
 			res := <-resultC
 			overallAppends += res.appends
-			weightedAppendLatencySum += time.Duration(res.avgAppendLatency.Nanoseconds() * int64(res.appends))
+			overallAppendLatencySum += res.overallAppendLatency
 			overallReads += res.reads
-			weightedReadLatencySum += time.Duration(res.avgReadLatency.Nanoseconds() * int64(res.reads))
+			overallReadLatencySum += res.overallReadLatency
 		}
 
 		overallAppendLatency := time.Duration(0)
 		appendThroughput := float64(0)
 		if overallAppends != 0 {
-			overallAppendLatency = time.Duration(weightedAppendLatencySum.Nanoseconds() / int64(overallAppends))
+			overallAppendLatency = time.Duration(overallAppendLatencySum.Nanoseconds() / int64(overallAppends))
 			appendThroughput = float64(overallAppends) / config.Runtime.Seconds()
 		}
 
 		overallReadLatency := time.Duration(0)
 		readThroughput := float64(0)
 		if overallReads != 0 {
-			overallReadLatency = time.Duration(weightedReadLatencySum.Nanoseconds() / int64(overallReads))
+			overallReadLatency = time.Duration(overallReadLatencySum.Nanoseconds() / int64(overallReads))
 			readThroughput = float64(overallReads) / config.Runtime.Seconds()
 		}
 
@@ -112,20 +112,12 @@ func executeBenchmark(IP string, runtime, appendInterval, readInterval time.Dura
 	var reads int
 
 	defer func() {
-		avgAppendLatency := time.Duration(0)
-		avgReadLatency := time.Duration(0)
-		if reads > 0 {
-			avgReadLatency = time.Duration(overallReadLatency.Nanoseconds() / int64(reads))
-		}
-		if appends > 0 {
-			avgAppendLatency = time.Duration(overallAppendLatency.Nanoseconds() / int64(appends))
-		}
 
 		resultC <- &benchmarkResult{
-			avgAppendLatency: avgAppendLatency,
-			appends:          appends,
-			avgReadLatency:   avgReadLatency,
-			reads:            reads,
+			overallAppendLatency: overallAppendLatency,
+			appends:              appends,
+			overallReadLatency:   overallReadLatency,
+			reads:                reads,
 		}
 		err := client.Trim(0, 0)
 		if err != nil {
