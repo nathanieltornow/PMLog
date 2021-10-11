@@ -10,10 +10,6 @@ import (
 	"time"
 )
 
-const (
-	batchInterval = 100 * time.Microsecond
-)
-
 type LocalNode struct {
 	mu sync.Mutex
 
@@ -38,7 +34,7 @@ type LocalNode struct {
 	prepM *prepManager
 }
 
-func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.OnPrepFunc, onOrder frame.OnOrderFunc, onComm frame.OnCommFunc) *LocalNode {
+func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.OnPrepFunc, onOrder frame.OnOrderFunc, onComm frame.OnCommFunc, interval time.Duration) *LocalNode {
 	ln := new(LocalNode)
 	ln.id = id
 	ln.peers = peers
@@ -52,8 +48,8 @@ func NewLocalNode(id, peers, color uint32, app frame.Application, onPrep frame.O
 	ln.recentlyCommitted = make(map[uint64]chan bool)
 
 	go ln.handleOrderResponses(onComm)
-	go ln.batchPrepMessages(batchInterval, onPrep)
-	go ln.batchOrderRequests(batchInterval, onOrder)
+	go ln.batchPrepMessages(interval, onPrep)
+	go ln.batchOrderRequests(interval, onOrder)
 	go ln.handleAcknowledgments()
 	return ln
 }

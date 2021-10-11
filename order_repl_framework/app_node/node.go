@@ -13,6 +13,11 @@ import (
 	"net"
 	"sync"
 	"sync/atomic"
+	"time"
+)
+
+const (
+	batchingInterval = 100 * time.Microsecond
 )
 
 type Node struct {
@@ -21,6 +26,8 @@ type Node struct {
 	id     uint32
 	color  uint32
 	ipAddr string
+
+	interval time.Duration
 
 	app frame.Application
 
@@ -43,7 +50,7 @@ type Node struct {
 	helpCtr uint32
 }
 
-func NewNode(id, color uint32) (*Node, error) {
+func NewNode(id, color uint32, opts ...NodeOption) (*Node, error) {
 	node := new(Node)
 	node.id = id
 	node.color = color
@@ -53,6 +60,10 @@ func NewNode(id, color uint32) (*Node, error) {
 	node.localNodes = make(map[uint32]*local_node.LocalNode)
 	node.ackCh = make(chan *nodepb.Acknowledgement)
 	node.ackBroadCast = make(map[uint32]chan *nodepb.Acknowledgement)
+	node.interval = batchingInterval
+	for _, opt := range opts {
+		opt(node)
+	}
 	return node, nil
 }
 
@@ -146,7 +157,7 @@ func (n *Node) addNewLocalNode(color uint32) *local_node.LocalNode {
 	defer n.localNodesMu.Unlock()
 	ln, ok := n.localNodes[color]
 	if !ok {
-		ln = local_node.NewLocalNode(n.id, atomic.LoadUint32(&n.numOfPeers), n.color, n.app, n.makePrepareMsg, n.orderClient.MakeOrderRequest, n.sendAck)
+		ln = local_node.NewLocalNode(n.id, atomic.LoadUint32(&n.numOfPeers), n.color, n.app, n.makePrepareMsg, n.orderClient.MakeOrderRequest, n.sendAck, n.interval)
 		n.localNodes[color] = ln
 	}
 	return ln

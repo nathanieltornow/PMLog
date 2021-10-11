@@ -6,14 +6,16 @@ import (
 	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log"
 	"github.com/sirupsen/logrus"
 	"strings"
+	"time"
 )
 
 var (
-	IP      = flag.String("IP", ":5000", "")
-	logIP   = flag.String("log", ":4000", "")
-	peerIPs = flag.String("peers", "", "")
-	orderIP = flag.String("order", ":9000", "")
-	id      = flag.Int("id", 0, "")
+	IP       = flag.String("IP", ":5000", "")
+	logIP    = flag.String("log", ":4000", "")
+	peerIPs  = flag.String("peers", "", "")
+	orderIP  = flag.String("order", ":9000", "")
+	id       = flag.Int("id", 0, "")
+	interval = flag.Duration("interval", 100*time.Microsecond, "")
 )
 
 func main() {
@@ -32,7 +34,7 @@ func main() {
 	if *peerIPs != "" {
 		peerList = strings.Split(*peerIPs, ",")
 	}
-	err = sharedLog.Start(*logIP, *IP, *orderIP, peerList)
+	err = sharedLog.Start(*logIP, *IP, *orderIP, peerList, *interval)
 	if err != nil {
 		logrus.Fatalln(err)
 	}
