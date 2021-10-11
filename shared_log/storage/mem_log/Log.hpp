@@ -17,6 +17,6 @@ public:
     ~CppLog();
     int Append(std::string record, uint64_t lsn);
     int Commit(uint64_t lsn, uint64_t gsn) ;
-    uint64_t Read( uint64_t gsn, char *storage);
+    const char *Read( uint64_t gsn, uint64_t *next_gsn);
     int Trim(uint64_t gsn);
 };

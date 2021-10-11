@@ -9,7 +9,7 @@ extern "C" {
     void LogFree(Log log);
     int cAppend(Log log, const char* record, uint64_t lsn);
     int cCommit(Log log,uint64_t lsn, uint64_t gsn) ;
-    uint64_t cRead(Log log, uint64_t gsn, char* storage);
+    const char *cRead(Log log, uint64_t gsn, void *next_gsn);
     int cTrim(Log log, uint64_t gsn);
 #ifdef __cplusplus
 }

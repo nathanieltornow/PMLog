@@ -37,11 +37,9 @@ func (log *Log) Commit(lsn uint64, gsn uint64) error {
 }
 
 func (log *Log) Read(gsn uint64) (string, error) {
-	var ret string
-	var cRecord = C.CString(ret)
+	var nextGsn *uint64
 	log.mu.Lock()
-	C.cRead(log.Log, C.ulong(gsn), cRecord)
-	ret = C.GoString(cRecord)
+	var ret = C.GoString(C.cRead(log.Log, C.ulong(gsn), unsafe.Pointer(nextGsn)))
 	log.mu.Unlock()
 	return ret, nil
 }

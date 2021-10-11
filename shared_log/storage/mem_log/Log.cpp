@@ -53,22 +53,25 @@ int CppLog::Commit(uint64_t lsn, uint64_t gsn){
 	}
 }
 
-uint64_t CppLog::Read(uint64_t gsn, char *storage) {
+const char *CppLog::Read(uint64_t gsn, uint64_t *next_gsn) {
     GSNmap::accessor acc;
+	const char *ret;
 
     try {
         if (gsn > this->highest_gsn || !(this->gsnPtr->find(acc, gsn)))
-            return 0;
+            return "";
         
-        strcpy(storage, acc->second.c_str());
+        ret = acc->second.c_str();
 
-        uint64_t next_gsn = gsn + 1;
-        while (!(this->gsnPtr->find(acc, next_gsn))) {
-            if (next_gsn > this->highest_gsn)
+        uint64_t nextGsn = gsn + 1;
+        while (!(this->gsnPtr->find(acc, nextGsn))) {
+            if (nextGsn > this->highest_gsn)
                 return 0;
-            next_gsn++;
+            nextGsn++;
         }
-        return next_gsn;
+        *next_gsn = nextGsn;
+		
+		return ret;
     }
     catch (const std::runtime_error &e){
 		std::cerr << e.what();
