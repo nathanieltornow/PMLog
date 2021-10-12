@@ -153,6 +153,7 @@ func (ln *LocalNode) batchOrderRequests(interval time.Duration, onOrder frame.On
 			}
 			current.NumOfRecords += 1
 		case <-send:
+			fmt.Println("send", current.NumOfRecords)
 			onOrder(current)
 			newBatch = true
 		}
