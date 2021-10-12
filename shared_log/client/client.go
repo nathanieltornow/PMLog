@@ -27,6 +27,9 @@ func NewClient(IP string) (*Client, error) {
 	cl.waitingGsn = make(map[uint32]chan uint64)
 	cl.appReqCh = make(chan *pb.AppendRequest, 1024)
 	stream, err := cl.pbClient.AsyncAppend(context.Background())
+	if err != nil {
+		return nil, err
+	}
 	go cl.sendAppends(stream)
 	go cl.receiveAppendResponses(stream)
 	return cl, nil
