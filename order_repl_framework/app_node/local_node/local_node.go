@@ -140,21 +140,27 @@ func (ln *LocalNode) batchPrepMessages(interval time.Duration, onPrep frame.OnPr
 func (ln *LocalNode) batchOrderRequests(interval time.Duration, onOrder frame.OnOrderFunc) {
 	newBatch := true
 	var send <-chan time.Time
-	var current *sequencerpb.OrderRequest
+	var startLsn uint64
+	var numOfRecords uint32
+	var color uint32
+	var originColor uint32
 
 	for {
 		select {
 		case oReq := <-ln.oReqCh:
 			if newBatch {
 				send = time.After(interval)
-				current = oReq
+				startLsn = oReq.Lsn
+				color = oReq.Color
+				originColor = oReq.OriginColor
+				numOfRecords = 0
 				newBatch = false
-				continue
 			}
-			current.NumOfRecords += 1
+			numOfRecords += 1
 		case <-send:
-			fmt.Println("send", current.NumOfRecords)
-			onOrder(current)
+			oReq := &sequencerpb.OrderRequest{Lsn: startLsn, Color: color,
+				OriginColor: originColor, NumOfRecords: numOfRecords}
+			onOrder(oReq)
 			newBatch = true
 		}
 	}
