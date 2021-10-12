@@ -16,6 +16,7 @@ var (
 	resultC     chan *benchmarkResult
 	record      = strings.Repeat("r", 4000)
 	threadsFlag = flag.Int("threads", 0, "")
+	wait        = flag.Bool("wait", false, "")
 )
 
 type benchmarkResult struct {
@@ -23,6 +24,12 @@ type benchmarkResult struct {
 	appends              int
 	overallReadLatency   time.Duration
 	reads                int
+}
+
+type overallResult struct {
+	throughput    int
+	appendLatency time.Duration
+	readLatency   time.Duration
 }
 
 func main() {
@@ -41,11 +48,10 @@ func main() {
 		threads = *threadsFlag
 	}
 
-	numEndpoints := len(config.Endpoints)
 	appendInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Appends))
 	readInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Reads))
 
-	f, err := os.OpenFile(fmt.Sprintf("results_t%v-n%v-a%v-r%v.csv", threads, numEndpoints, config.Appends, config.Reads),
+	f, err := os.OpenFile(fmt.Sprintf("results_a%v-r%v.csv", config.Appends, config.Reads),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
 		logrus.Fatalln(err)
@@ -62,6 +68,8 @@ func main() {
 			clients = append(clients, client)
 		}
 	}
+
+	result := &overallResult{}
 
 	for t := 0; t < config.Times; t++ {
 		resultC = make(chan *benchmarkResult, threads*len(clients))
@@ -96,14 +104,22 @@ func main() {
 			readThroughput = float64(overallReads) / config.Runtime.Seconds()
 		}
 
+		result.throughput += int(readThroughput + appendThroughput)
+		result.appendLatency += overallAppendLatency
+		result.readLatency += overallReadLatency
+
 		fmt.Printf(
 			"-----\nAppend:\nLatency: %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v\nThroughput (ops/s): %v\n",
 			overallAppendLatency, appendThroughput, overallReadLatency, readThroughput)
+	}
 
-		if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v \n", appendThroughput,
-			overallAppendLatency.Microseconds(), readThroughput, overallReadLatency.Microseconds())); err != nil {
-			logrus.Fatalln(err)
-		}
+	throughput := result.throughput / config.Times
+	appendLatency := time.Duration(result.appendLatency.Nanoseconds() / int64(config.Times))
+	readLatency := time.Duration(result.readLatency.Nanoseconds() / int64(config.Times))
+
+	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v\n", throughput,
+		appendLatency.Microseconds(), readLatency.Microseconds())); err != nil {
+		logrus.Fatalln(err)
 	}
 
 }
@@ -128,10 +144,14 @@ func executeBenchmark(client *log_client.Client, runtime, appendInterval, readIn
 			logrus.Fatalln(err)
 		}
 	}()
-
 	appendTicker := time.Tick(appendInterval)
 	readTicker := time.Tick(readInterval)
-	stop := time.After(10 * time.Second)
+
+	if *wait {
+		<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	}
+
+	stop := time.After(5 * time.Second)
 	loadLoop(client, stop, appendTicker, readTicker)
 
 	stop = time.After(runtime)
@@ -162,7 +182,7 @@ benchLoop:
 			reads++
 		}
 	}
-	stop = time.After(10 * time.Second)
+	stop = time.After(5 * time.Second)
 	loadLoop(client, stop, appendTicker, readTicker)
 }
 
