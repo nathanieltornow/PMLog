@@ -19,6 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type SharedLogClient interface {
 	Append(ctx context.Context, in *AppendRequest, opts ...grpc.CallOption) (*AppendResponse, error)
+	AsyncAppend(ctx context.Context, opts ...grpc.CallOption) (SharedLog_AsyncAppendClient, error)
 	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
 	Trim(ctx context.Context, in *TrimRequest, opts ...grpc.CallOption) (*TrimResponse, error)
 }
@@ -38,6 +39,37 @@ func (c *sharedLogClient) Append(ctx context.Context, in *AppendRequest, opts ..
 		return nil, err
 	}
 	return out, nil
+}
+
+func (c *sharedLogClient) AsyncAppend(ctx context.Context, opts ...grpc.CallOption) (SharedLog_AsyncAppendClient, error) {
+	stream, err := c.cc.NewStream(ctx, &SharedLog_ServiceDesc.Streams[0], "/shared_log.SharedLog/AsyncAppend", opts...)
+	if err != nil {
+		return nil, err
+	}
+	x := &sharedLogAsyncAppendClient{stream}
+	return x, nil
+}
+
+type SharedLog_AsyncAppendClient interface {
+	Send(*AppendRequest) error
+	Recv() (*AppendResponse, error)
+	grpc.ClientStream
+}
+
+type sharedLogAsyncAppendClient struct {
+	grpc.ClientStream
+}
+
+func (x *sharedLogAsyncAppendClient) Send(m *AppendRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *sharedLogAsyncAppendClient) Recv() (*AppendResponse, error) {
+	m := new(AppendResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *sharedLogClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
@@ -63,6 +95,7 @@ func (c *sharedLogClient) Trim(ctx context.Context, in *TrimRequest, opts ...grp
 // for forward compatibility
 type SharedLogServer interface {
 	Append(context.Context, *AppendRequest) (*AppendResponse, error)
+	AsyncAppend(SharedLog_AsyncAppendServer) error
 	Read(context.Context, *ReadRequest) (*ReadResponse, error)
 	Trim(context.Context, *TrimRequest) (*TrimResponse, error)
 	mustEmbedUnimplementedSharedLogServer()
@@ -74,6 +107,9 @@ type UnimplementedSharedLogServer struct {
 
 func (UnimplementedSharedLogServer) Append(context.Context, *AppendRequest) (*AppendResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Append not implemented")
+}
+func (UnimplementedSharedLogServer) AsyncAppend(SharedLog_AsyncAppendServer) error {
+	return status.Errorf(codes.Unimplemented, "method AsyncAppend not implemented")
 }
 func (UnimplementedSharedLogServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
@@ -110,6 +146,32 @@ func _SharedLog_Append_Handler(srv interface{}, ctx context.Context, dec func(in
 		return srv.(SharedLogServer).Append(ctx, req.(*AppendRequest))
 	}
 	return interceptor(ctx, in, info, handler)
+}
+
+func _SharedLog_AsyncAppend_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(SharedLogServer).AsyncAppend(&sharedLogAsyncAppendServer{stream})
+}
+
+type SharedLog_AsyncAppendServer interface {
+	Send(*AppendResponse) error
+	Recv() (*AppendRequest, error)
+	grpc.ServerStream
+}
+
+type sharedLogAsyncAppendServer struct {
+	grpc.ServerStream
+}
+
+func (x *sharedLogAsyncAppendServer) Send(m *AppendResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *sharedLogAsyncAppendServer) Recv() (*AppendRequest, error) {
+	m := new(AppendRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func _SharedLog_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -168,6 +230,13 @@ var SharedLog_ServiceDesc = grpc.ServiceDesc{
 			Handler:    _SharedLog_Trim_Handler,
 		},
 	},
-	Streams:  []grpc.StreamDesc{},
+	Streams: []grpc.StreamDesc{
+		{
+			StreamName:    "AsyncAppend",
+			Handler:       _SharedLog_AsyncAppend_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+	},
 	Metadata: "shared_logpb/shared_log.proto",
 }

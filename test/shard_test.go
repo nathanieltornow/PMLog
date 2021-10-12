@@ -2,6 +2,7 @@ package test
 
 import (
 	"flag"
+	"fmt"
 	"github.com/nathanieltornow/PMLog/shared_log/client"
 	"github.com/sirupsen/logrus"
 	"github.com/stretchr/testify/require"
@@ -50,6 +51,7 @@ func TestAppendRead(t *testing.T) {
 	for _, cl := range clientList {
 		for _, gsn := range gsns {
 			rec, err := cl.Read(0, gsn)
+			fmt.Println(gsn, rec)
 			require.NoError(t, err)
 			require.Equal(t, rec, record)
 		}

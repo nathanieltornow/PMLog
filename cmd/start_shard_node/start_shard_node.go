@@ -4,7 +4,6 @@ import (
 	"flag"
 	"github.com/nathanieltornow/PMLog/shared_log"
 	"github.com/nathanieltornow/PMLog/shared_log/storage"
-	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log"
 	"github.com/nathanieltornow/PMLog/shared_log/storage/mem_log_go"
 	"github.com/sirupsen/logrus"
 	"strings"
@@ -28,12 +27,13 @@ func main() {
 
 	if *logType == "go" {
 		log = mem_log_go.NewMemLogGo()
-	} else {
-		log, err = mem_log.NewLog()
-		if err != nil {
-			logrus.Fatalln(err)
-		}
 	}
+	//else {
+	//	log, err = mem_log.NewLog()
+	//	if err != nil {
+	//		logrus.Fatalln(err)
+	//	}
+	//}
 	sharedLog, err := shared_log.NewSharedLog(log, uint32(*id), 1010)
 	if err != nil {
 		logrus.Fatalln(err)

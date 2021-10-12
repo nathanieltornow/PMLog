@@ -11,6 +11,7 @@ import (
 	"google.golang.org/grpc"
 	"net"
 	"sync"
+	"sync/atomic"
 	"time"
 )
 
@@ -25,6 +26,17 @@ type SharedLog struct {
 
 	pendingAppends   map[uint64]chan uint64
 	pendingAppendsMu sync.Mutex
+
+	clientIDCtr uint32
+	lsnToken    map[uint64]*tuple
+	lsnTokenMu  sync.RWMutex
+	clientChs   map[uint32]chan *pb.AppendResponse
+	clientChsMu sync.RWMutex
+}
+
+type tuple struct {
+	clientID uint32
+	token    uint32
 }
 
 func NewSharedLog(log storage.Log, id, color uint32) (*SharedLog, error) {
@@ -33,6 +45,8 @@ func NewSharedLog(log storage.Log, id, color uint32) (*SharedLog, error) {
 	sl.color = color
 	sl.log = log
 	sl.pendingAppends = make(map[uint64]chan uint64)
+	sl.lsnToken = make(map[uint64]*tuple)
+	sl.clientChs = make(map[uint32]chan *pb.AppendResponse)
 	return sl, nil
 }
 
@@ -68,6 +82,34 @@ func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.Appen
 	// wait for the global-sequence number
 	gsn := <-waitingGsn
 	return &pb.AppendResponse{Gsn: gsn}, nil
+}
+
+func (sl *SharedLog) AsyncAppend(stream pb.SharedLog_AsyncAppendServer) error {
+	id := atomic.AddUint32(&sl.clientIDCtr, 1)
+	ch := make(chan *pb.AppendResponse, 1024)
+	sl.clientChsMu.Lock()
+	sl.clientChs[id] = ch
+	sl.clientChsMu.Unlock()
+	go forwardAppendResponses(ch, stream)
+	for {
+		appReq, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		localToken := sl.node.MakeCommitRequest(&frame.CommitRequest{Color: appReq.Color, Content: appReq.Record})
+		sl.lsnTokenMu.Lock()
+		sl.lsnToken[localToken] = &tuple{clientID: id, token: appReq.Token}
+		sl.lsnTokenMu.Unlock()
+	}
+}
+
+func forwardAppendResponses(ch chan *pb.AppendResponse, stream pb.SharedLog_AsyncAppendServer) {
+	for appRsp := range ch {
+		err := stream.Send(appRsp)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+	}
 }
 
 func (sl *SharedLog) Read(_ context.Context, req *pb.ReadRequest) (*pb.ReadResponse, error) {

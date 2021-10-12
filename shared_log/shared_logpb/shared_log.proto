@@ -5,6 +5,7 @@ option go_package = "github.com/nathanieltornow/PMLog/shared_log/shared_logpb";
 
 service SharedLog {
   rpc Append(AppendRequest) returns (AppendResponse);
+  rpc AsyncAppend(stream AppendRequest) returns (stream AppendResponse);
   rpc Read(ReadRequest) returns (ReadResponse);
   rpc Trim(TrimRequest) returns (TrimResponse);
 }
@@ -12,10 +13,12 @@ service SharedLog {
 message AppendRequest {
   string record = 1;
   uint32 color = 2;
+  uint32 token = 3;
 }
 
 message AppendResponse {
   uint64 gsn = 1;
+  uint32 token = 2;
 }
 
 message ReadRequest {
