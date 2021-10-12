@@ -52,19 +52,29 @@ func main() {
 	}
 	defer f.Close()
 
+	clients := make([]*log_client.Client, 0)
+	for _, endpoint := range config.Endpoints {
+		for i := 0; i < config.Clients; i++ {
+			client, err := log_client.NewClient(endpoint)
+			if err != nil {
+				logrus.Fatalln(err)
+			}
+			clients = append(clients, client)
+		}
+	}
+
 	for t := 0; t < config.Times; t++ {
-		resultC = make(chan *benchmarkResult, threads*numEndpoints)
-		for _, endpoint := range config.Endpoints {
+		resultC = make(chan *benchmarkResult, threads*len(clients))
+		for _, client := range clients {
 			for i := 0; i < threads; i++ {
-				go executeBenchmark(endpoint, config.Runtime, appendInterval, readInterval)
+				go executeBenchmark(client, config.Runtime, appendInterval, readInterval)
 			}
 		}
-
 		overallAppends := 0
 		overallAppendLatencySum := time.Duration(0)
 		overallReads := 0
 		overallReadLatencySum := time.Duration(0)
-		for i := 0; i < threads*numEndpoints; i++ {
+		for i := 0; i < threads*len(clients); i++ {
 			res := <-resultC
 			overallAppends += res.appends
 			overallAppendLatencySum += res.overallAppendLatency
@@ -98,14 +108,8 @@ func main() {
 
 }
 
-func executeBenchmark(IP string, runtime, appendInterval, readInterval time.Duration) {
-	client, err := log_client.NewClient(IP)
-	if err != nil {
-		logrus.Fatalln(err)
-	}
-
+func executeBenchmark(client *log_client.Client, runtime, appendInterval, readInterval time.Duration) {
 	var curGsn uint64
-
 	overallAppendLatency := time.Duration(0)
 	overallReadLatency := time.Duration(0)
 	var appends int

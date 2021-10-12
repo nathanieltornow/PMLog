@@ -12,6 +12,7 @@ type BenchConfig struct {
 	Threads   int           `yaml:"threads"`
 	Runtime   time.Duration `yaml:"runtime"`
 	Endpoints []string      `yaml:"endpoints"`
+	Clients   int           `yaml:"clients"`
 	Times     int           `yaml:"times"`
 }
 
