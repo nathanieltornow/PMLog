@@ -14,6 +14,8 @@ type MemLogGo struct {
 
 func NewMemLogGo() *MemLogGo {
 	mlg := new(MemLogGo)
+	mlg.lsnToRecord = make(map[uint64]string)
+	mlg.gsnToRecord = make(map[uint64]string)
 	return mlg
 }
 
