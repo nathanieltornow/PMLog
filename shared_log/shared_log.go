@@ -61,12 +61,16 @@ func (sl *SharedLog) Start(ipAddr, nodeIP, orderIP string, peerIPs []string, int
 
 func (sl *SharedLog) Append(_ context.Context, req *pb.AppendRequest) (*pb.AppendResponse, error) {
 	waitingGsn := make(chan uint64, 1)
+	start := time.Now()
 	localToken := sl.node.MakeCommitRequest(&frame.CommitRequest{Color: req.Color, Content: req.Record})
+	fmt.Println("one", time.Since(start))
 	sl.pendingAppendsMu.Lock()
 	sl.pendingAppends[localToken] = waitingGsn
 	sl.pendingAppendsMu.Unlock()
 	// wait for the global-sequence number
+	s2 := time.Now()
 	gsn := <-waitingGsn
+	fmt.Println("two", time.Since(s2))
 	return &pb.AppendResponse{Gsn: gsn}, nil
 }
 

@@ -1,7 +1,6 @@
 package local_node
 
 import (
-	"fmt"
 	frame "github.com/nathanieltornow/PMLog/order_repl_framework"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/app_node/nodepb"
 	"github.com/nathanieltornow/PMLog/order_repl_framework/sequencer/sequencerpb"
@@ -100,9 +99,7 @@ func (ln *LocalNode) handleAcknowledgments() {
 func (ln *LocalNode) handleOrderResponses(onComm frame.OnCommFunc) {
 	for oRsp := range ln.oRspCh {
 		for i := uint64(0); i < uint64(oRsp.NumOfRecords); i++ {
-			start := time.Now()
 			ln.prepM.waitForPrep(oRsp.Lsn + i)
-			fmt.Println(time.Since(start), oRsp.NumOfRecords)
 			ln.commit(oRsp.Lsn+i, oRsp.Color, oRsp.Gsn+i)
 		}
 		if uint32(oRsp.Lsn>>32) != ln.id && oRsp.NumOfRecords > 0 {
