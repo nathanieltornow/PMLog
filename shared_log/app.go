@@ -2,6 +2,7 @@ package shared_log
 
 import (
 	pb "github.com/nathanieltornow/PMLog/shared_log/shared_logpb"
+	"github.com/sirupsen/logrus"
 )
 
 func (sl *SharedLog) Prepare(localToken uint64, color uint32, content string) error {
@@ -34,7 +35,7 @@ func (sl *SharedLog) Acknowledge(localToken uint64, color uint32, globalToken ui
 		sl.clientChsMu.RUnlock()
 		return nil
 	}
-
+	logrus.Fatalln("not found")
 	defer func() {
 		sl.pendingAppendsMu.Lock()
 		delete(sl.pendingAppends, localToken)

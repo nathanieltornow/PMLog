@@ -131,12 +131,15 @@ func executeBenchmark(client *log_client.Client, runtime, appendInterval, readIn
 
 	appendTicker := time.Tick(appendInterval)
 	readTicker := time.Tick(readInterval)
-	<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
-	stop := time.After(runtime)
+	stop := time.After(10 * time.Second)
+	loadLoop(client, stop, appendTicker, readTicker)
+
+	stop = time.After(runtime)
+benchLoop:
 	for {
 		select {
 		case <-stop:
-			return
+			break benchLoop
 		case <-appendTicker:
 			start := time.Now()
 			gsn, err := client.Append(0, record)
@@ -157,6 +160,32 @@ func executeBenchmark(client *log_client.Client, runtime, appendInterval, readIn
 				logrus.Fatalln(err)
 			}
 			reads++
+		}
+	}
+	stop = time.After(10 * time.Second)
+	loadLoop(client, stop, appendTicker, readTicker)
+}
+
+func loadLoop(client *log_client.Client, stop <-chan time.Time, appendTicker, readTicker <-chan time.Time) {
+	curGsn := uint64(0)
+	for {
+		select {
+		case <-stop:
+			return
+		case <-appendTicker:
+			gsn, err := client.Append(0, record)
+			if err != nil {
+				logrus.Fatalln(err)
+			}
+			curGsn = gsn
+		case <-readTicker:
+			if curGsn == 0 {
+				continue
+			}
+			_, err := client.Read(0, curGsn)
+			if err != nil {
+				logrus.Fatalln(err)
+			}
 		}
 	}
 }
