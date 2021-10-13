@@ -60,6 +60,12 @@ func (mlg *MemLogGo) Read(gsn uint64) (string, error) {
 
 // Trim deletes all records of the log of color before global-sequence-number gsn
 func (mlg *MemLogGo) Trim(gsn uint64) error {
+	if gsn == 0 {
+		mlg.gsnMu.Lock()
+		mlg.gsnToRecord = make(map[uint64]string)
+		mlg.gsnMu.Unlock()
+		return nil
+	}
 	mlg.gsnMu.Lock()
 	for recGsn := range mlg.gsnToRecord {
 		if recGsn < gsn {
