@@ -6,7 +6,7 @@ import (
 )
 
 func TestLog_Append(t *testing.T) {
-	log := NewMemLogGo()
+	log, _ := NewMemLogGo()
 	for i := 0; i < 1000; i++ {
 		_ = log.Append(strings.Repeat("h", 4000), 14)
 		_ = log.Commit(14, 33)
