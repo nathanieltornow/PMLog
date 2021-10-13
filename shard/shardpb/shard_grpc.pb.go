@@ -19,7 +19,7 @@ const _ = grpc.SupportPackageIsVersion7
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
 type ReplicaClient interface {
 	Append(ctx context.Context, opts ...grpc.CallOption) (Replica_AppendClient, error)
-	Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error)
+	Read(ctx context.Context, opts ...grpc.CallOption) (Replica_ReadClient, error)
 	Trim(ctx context.Context, in *TrimRequest, opts ...grpc.CallOption) (*Ok, error)
 }
 
@@ -62,13 +62,35 @@ func (x *replicaAppendClient) Recv() (*AppendResponse, error) {
 	return m, nil
 }
 
-func (c *replicaClient) Read(ctx context.Context, in *ReadRequest, opts ...grpc.CallOption) (*ReadResponse, error) {
-	out := new(ReadResponse)
-	err := c.cc.Invoke(ctx, "/shard.Replica/Read", in, out, opts...)
+func (c *replicaClient) Read(ctx context.Context, opts ...grpc.CallOption) (Replica_ReadClient, error) {
+	stream, err := c.cc.NewStream(ctx, &Replica_ServiceDesc.Streams[1], "/shard.Replica/Read", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &replicaReadClient{stream}
+	return x, nil
+}
+
+type Replica_ReadClient interface {
+	Send(*ReadRequest) error
+	Recv() (*ReadResponse, error)
+	grpc.ClientStream
+}
+
+type replicaReadClient struct {
+	grpc.ClientStream
+}
+
+func (x *replicaReadClient) Send(m *ReadRequest) error {
+	return x.ClientStream.SendMsg(m)
+}
+
+func (x *replicaReadClient) Recv() (*ReadResponse, error) {
+	m := new(ReadResponse)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 func (c *replicaClient) Trim(ctx context.Context, in *TrimRequest, opts ...grpc.CallOption) (*Ok, error) {
@@ -85,7 +107,7 @@ func (c *replicaClient) Trim(ctx context.Context, in *TrimRequest, opts ...grpc.
 // for forward compatibility
 type ReplicaServer interface {
 	Append(Replica_AppendServer) error
-	Read(context.Context, *ReadRequest) (*ReadResponse, error)
+	Read(Replica_ReadServer) error
 	Trim(context.Context, *TrimRequest) (*Ok, error)
 	mustEmbedUnimplementedReplicaServer()
 }
@@ -97,8 +119,8 @@ type UnimplementedReplicaServer struct {
 func (UnimplementedReplicaServer) Append(Replica_AppendServer) error {
 	return status.Errorf(codes.Unimplemented, "method Append not implemented")
 }
-func (UnimplementedReplicaServer) Read(context.Context, *ReadRequest) (*ReadResponse, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method Read not implemented")
+func (UnimplementedReplicaServer) Read(Replica_ReadServer) error {
+	return status.Errorf(codes.Unimplemented, "method Read not implemented")
 }
 func (UnimplementedReplicaServer) Trim(context.Context, *TrimRequest) (*Ok, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method Trim not implemented")
@@ -142,22 +164,30 @@ func (x *replicaAppendServer) Recv() (*AppendRequest, error) {
 	return m, nil
 }
 
-func _Replica_Read_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(ReadRequest)
-	if err := dec(in); err != nil {
+func _Replica_Read_Handler(srv interface{}, stream grpc.ServerStream) error {
+	return srv.(ReplicaServer).Read(&replicaReadServer{stream})
+}
+
+type Replica_ReadServer interface {
+	Send(*ReadResponse) error
+	Recv() (*ReadRequest, error)
+	grpc.ServerStream
+}
+
+type replicaReadServer struct {
+	grpc.ServerStream
+}
+
+func (x *replicaReadServer) Send(m *ReadResponse) error {
+	return x.ServerStream.SendMsg(m)
+}
+
+func (x *replicaReadServer) Recv() (*ReadRequest, error) {
+	m := new(ReadRequest)
+	if err := x.ServerStream.RecvMsg(m); err != nil {
 		return nil, err
 	}
-	if interceptor == nil {
-		return srv.(ReplicaServer).Read(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/shard.Replica/Read",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(ReplicaServer).Read(ctx, req.(*ReadRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return m, nil
 }
 
 func _Replica_Trim_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -186,10 +216,6 @@ var Replica_ServiceDesc = grpc.ServiceDesc{
 	HandlerType: (*ReplicaServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "Read",
-			Handler:    _Replica_Read_Handler,
-		},
-		{
 			MethodName: "Trim",
 			Handler:    _Replica_Trim_Handler,
 		},
@@ -198,6 +224,12 @@ var Replica_ServiceDesc = grpc.ServiceDesc{
 		{
 			StreamName:    "Append",
 			Handler:       _Replica_Append_Handler,
+			ServerStreams: true,
+			ClientStreams: true,
+		},
+		{
+			StreamName:    "Read",
+			Handler:       _Replica_Read_Handler,
 			ServerStreams: true,
 			ClientStreams: true,
 		},

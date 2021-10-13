@@ -48,12 +48,12 @@ func (cs *colorService) insertOrderResponse(oRsp *sequencerpb.OrderResponse) {
 	cs.oRspCh <- oRsp
 }
 
-func (cs *colorService) read(gsn uint64) (*shardpb.ReadResponse, error) {
+func (cs *colorService) read(gsn uint64) (string, error) {
 	record, err := cs.log.Read(gsn)
 	if err != nil {
-		return nil, err
+		return "", err
 	}
-	return &shardpb.ReadResponse{Gsn: gsn, Record: record}, nil
+	return record, nil
 }
 
 func (cs *colorService) trim(gsn uint64) (*shardpb.Ok, error) {

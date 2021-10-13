@@ -5,7 +5,7 @@ option go_package = "github.com/nathanieltornow/PMLog/shard/shardpb";
 
 service Replica {
   rpc Append(stream AppendRequest) returns (stream AppendResponse);
-  rpc Read(ReadRequest) returns (ReadResponse);
+  rpc Read(stream ReadRequest) returns (stream ReadResponse);
   rpc Trim(TrimRequest) returns (Ok);
 }
 
@@ -23,12 +23,14 @@ message AppendResponse {
 
 message ReadRequest {
   uint64 gsn = 1;
-  uint32 color = 2;
+  uint64 token = 2;
+  uint32 color = 3;
 }
 
 message ReadResponse {
   uint64 gsn = 1;
   string record = 2;
+  uint64 token = 3;
 }
 
 message TrimRequest {

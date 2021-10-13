@@ -109,8 +109,18 @@ func replyAppendResponses(ch chan *shardpb.AppendResponse, stream shardpb.Replic
 	}
 }
 
-func (r *Replica) Read(_ context.Context, readReq *shardpb.ReadRequest) (*shardpb.ReadResponse, error) {
-	return r.getColorService(readReq.Color).read(readReq.Gsn)
+func (r *Replica) Read(stream shardpb.Replica_ReadServer) error {
+	for {
+		req, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		record, _ := r.getColorService(req.Color).read(req.Gsn)
+		err = stream.Send(&shardpb.ReadResponse{Token: req.Token, Gsn: req.Gsn, Record: record})
+		if err != nil {
+			return err
+		}
+	}
 }
 
 func (r *Replica) Trim(_ context.Context, trimReq *shardpb.TrimRequest) (*shardpb.Ok, error) {
