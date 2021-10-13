@@ -91,7 +91,7 @@ func (cs *colorService) handleOrderResponses(outAppRspCh chan *shardpb.AppendRes
 func (cs *colorService) batchOrderRequests(color, originColor uint32,
 	interval time.Duration, outOReqCh chan *sequencerpb.OrderRequest) {
 
-	ticker := time.Tick(interval)
+	var send <-chan time.Time
 
 	newBatch := true
 	var currentTokens []uint64
@@ -101,10 +101,11 @@ func (cs *colorService) batchOrderRequests(color, originColor uint32,
 		case token := <-cs.oReqCh:
 			if newBatch {
 				currentTokens = make([]uint64, 0)
+				send = time.After(interval)
 				newBatch = false
 			}
 			currentTokens = append(currentTokens, token)
-		case <-ticker:
+		case <-send:
 			if newBatch {
 				continue
 			}
