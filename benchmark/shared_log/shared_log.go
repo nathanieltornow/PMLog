@@ -28,7 +28,9 @@ type benchmarkResult struct {
 type overallResult struct {
 	throughputs     []float64
 	appendLatencies []float64
+	appendMedians   []float64
 	readLatencies   []float64
+	readMedians     []float64
 	append99Perc    []float64
 	read99Perc      []float64
 	append95Perc    []float64
@@ -101,6 +103,15 @@ func main() {
 			logrus.Fatalln(err)
 		}
 
+		appendMedian, err := stats.Median(appendLatencies)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+		readMedian, err := stats.Median(readLatencies)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+
 		append99Percentile, err := stats.Percentile(appendLatencies, 99)
 		if err != nil {
 			logrus.Fatalln(err)
@@ -122,35 +133,42 @@ func main() {
 		appendThroughput := float64(len(appendLatencies)) / config.Runtime.Seconds()
 		readThroughput := float64(len(readLatencies)) / config.Runtime.Seconds()
 
-		for _, client := range clients {
-			client.Trim(0, 0)
-		}
-
 		overall.throughputs = append(overall.throughputs, float64(appendThroughput+readThroughput))
 
 		overall.appendLatencies = append(overall.appendLatencies, overallAppendLatency)
+		overall.appendMedians = append(overall.appendMedians, appendMedian)
 		overall.append99Perc = append(overall.append99Perc, append99Percentile)
 		overall.append95Perc = append(overall.append95Perc, append95Percentile)
 
 		overall.readLatencies = append(overall.readLatencies, overallReadLatency)
+		overall.readMedians = append(overall.readMedians, readMedian)
 		overall.read99Perc = append(overall.read99Perc, read99Percentile)
 		overall.read95Perc = append(overall.read95Perc, read95Percentile)
 
-		fmt.Printf("-----\nAppend:\nLatency: %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v\nThroughput (ops/s): %v\n",
-			overallAppendLatency, appendThroughput, overallReadLatency, readThroughput)
+		fmt.Printf("-----\nAppend:\nLatency: %v, %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v, %v\nThroughput (ops/s): %v\n",
+			overallAppendLatency, appendMedian, appendThroughput, overallReadLatency, readMedian, readThroughput)
+
+		for _, client := range clients {
+			client.Trim(0, 0)
+		}
 	}
 
 	throughput, err := stats.Mean(overall.throughputs)
 
 	appendLatency, err := stats.Mean(overall.appendLatencies)
+	appendMedian, err := stats.Mean(overall.appendMedians)
 	append99Perc, err := stats.Mean(overall.append99Perc)
 	append95Perc, err := stats.Mean(overall.append95Perc)
 
 	readLatency, err := stats.Mean(overall.readLatencies)
+	readMedian, err := stats.Median(overall.appendMedians)
 	read99Perc, err := stats.Mean(overall.read99Perc)
 	read95Perc, err := stats.Mean(overall.read95Perc)
+	if err != nil {
+		logrus.Fatalln(err)
+	}
 
-	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v, %v, %v\n", throughput, appendLatency, append99Perc, append95Perc, readLatency, read99Perc, read95Perc)); err != nil {
+	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v, %v, %v, %v, %v\n", throughput, appendLatency, appendMedian, append99Perc, append95Perc, readLatency, readMedian, read99Perc, read95Perc)); err != nil {
 		logrus.Fatalln(err)
 	}
 
