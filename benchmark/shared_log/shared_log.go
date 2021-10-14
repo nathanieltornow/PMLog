@@ -161,7 +161,7 @@ func main() {
 	append95Perc, err := stats.Mean(overall.append95Perc)
 
 	readLatency, err := stats.Mean(overall.readLatencies)
-	readMedian, err := stats.Median(overall.readMedians)
+	readMedian, err := stats.Mean(overall.readMedians)
 	read99Perc, err := stats.Mean(overall.read99Perc)
 	read95Perc, err := stats.Mean(overall.read95Perc)
 	if err != nil {
