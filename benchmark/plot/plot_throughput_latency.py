@@ -12,8 +12,8 @@ with open(result_file_path, 'r') as res_file:
     read_res = []
 
     for res in results:
-        append_res.append((float(res[0]) + float(res[2]), float(res[1])))
-        read_res.append((float(res[2]), float(res[3])))
+        append_res.append((float(res[0]), float(res[1])))
+        read_res.append((float(res[0]), float(res[2])))
 
     append_res.sort(key=lambda x: x[0])
     read_res.sort(key=lambda x: x[0])

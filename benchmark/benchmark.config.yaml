@@ -4,7 +4,7 @@ endpoints: # the IP of the shards
   - "node-3:4000"
 clients : 1 # number of clients per shard
 threads: 1 # number of threads that generate requests per client
-appends: 950 # appends per second for each thread
+appends: 50 # appends per second for each thread
 reads: 50 # reads per second for each thread
-runtime: 40s # overall runtime
+runtime: 30s # overall runtime
 times: 5

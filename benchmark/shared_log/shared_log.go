@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/montanaflynn/stats"
 	"github.com/nathanieltornow/PMLog/benchmark"
 	log_client "github.com/nathanieltornow/PMLog/client"
 	"github.com/sirupsen/logrus"
@@ -20,16 +21,18 @@ var (
 )
 
 type benchmarkResult struct {
-	overallAppendLatency time.Duration
-	appends              int
-	overallReadLatency   time.Duration
-	reads                int
+	appendLatencies []float64
+	readLatencies   []float64
 }
 
 type overallResult struct {
-	throughput    int
-	appendLatency time.Duration
-	readLatency   time.Duration
+	throughputs     []float64
+	appendLatencies []float64
+	readLatencies   []float64
+	append99Perc    []float64
+	read99Perc      []float64
+	append95Perc    []float64
+	read95Perc      []float64
 }
 
 func main() {
@@ -48,9 +51,6 @@ func main() {
 		threads = *threadsFlag
 	}
 
-	appendInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Appends))
-	readInterval := time.Duration(time.Second.Nanoseconds() / int64(config.Reads))
-
 	f, err := os.OpenFile(fmt.Sprintf("results_a%v-r%v.csv", config.Appends, config.Reads),
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
 	if err != nil {
@@ -67,131 +67,172 @@ func main() {
 		clients = append(clients, client)
 	}
 
-	result := &overallResult{}
+	overall := overallResult{
+		throughputs:     make([]float64, 0),
+		appendLatencies: make([]float64, 0),
+		readLatencies:   make([]float64, 0),
+		append99Perc:    make([]float64, 0),
+		read99Perc:      make([]float64, 0),
+		append95Perc:    make([]float64, 0),
+		read95Perc:      make([]float64, 0),
+	}
 
 	for t := 0; t < config.Times; t++ {
 		resultC = make(chan *benchmarkResult, threads*len(clients))
 		for _, client := range clients {
 			for i := 0; i < threads; i++ {
-				go executeBenchmark(client, config.Runtime, appendInterval, readInterval)
+				go executeBenchmark(client, config.Runtime, config.Appends, config.Reads)
 			}
 		}
-		overallAppends := 0
-		overallAppendLatencySum := time.Duration(0)
-		overallReads := 0
-		overallReadLatencySum := time.Duration(0)
+		appendLatencies := make([]float64, 0)
+		readLatencies := make([]float64, 0)
 		for i := 0; i < threads*len(clients); i++ {
 			res := <-resultC
-			overallAppends += res.appends
-			overallAppendLatencySum += res.overallAppendLatency
-			overallReads += res.reads
-			overallReadLatencySum += res.overallReadLatency
+			appendLatencies = append(appendLatencies, res.appendLatencies...)
+			readLatencies = append(readLatencies, res.readLatencies...)
 		}
 
-		overallAppendLatency := time.Duration(0)
-		appendThroughput := float64(0)
-		if overallAppends != 0 {
-			overallAppendLatency = time.Duration(overallAppendLatencySum.Nanoseconds() / int64(overallAppends))
-			appendThroughput = float64(overallAppends) / config.Runtime.Seconds()
+		overallAppendLatency, err := stats.Mean(appendLatencies)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+		overallReadLatency, err := stats.Mean(readLatencies)
+		if err != nil {
+			logrus.Fatalln(err)
 		}
 
-		overallReadLatency := time.Duration(0)
-		readThroughput := float64(0)
-		if overallReads != 0 {
-			overallReadLatency = time.Duration(overallReadLatencySum.Nanoseconds() / int64(overallReads))
-			readThroughput = float64(overallReads) / config.Runtime.Seconds()
+		append99Percentile, err := stats.Percentile(appendLatencies, 99)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+		read99Percentile, err := stats.Percentile(readLatencies, 99)
+		if err != nil {
+			logrus.Fatalln(err)
 		}
 
-		result.throughput += int(readThroughput + appendThroughput)
-		result.appendLatency += overallAppendLatency
-		result.readLatency += overallReadLatency
+		append95Percentile, err := stats.Percentile(appendLatencies, 95)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+		read95Percentile, err := stats.Percentile(readLatencies, 95)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+
+		appendThroughput := float64(len(appendLatencies)) / config.Runtime.Seconds()
+		readThroughput := float64(len(readLatencies)) / config.Runtime.Seconds()
 
 		for _, client := range clients {
 			client.Trim(0, 0)
 		}
 
-		fmt.Printf(
-			"-----\nAppend:\nLatency: %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v\nThroughput (ops/s): %v\n",
+		overall.throughputs = append(overall.throughputs, float64(appendThroughput+readThroughput))
+
+		overall.appendLatencies = append(overall.appendLatencies, overallAppendLatency)
+		overall.append99Perc = append(overall.append99Perc, append99Percentile)
+		overall.append95Perc = append(overall.append95Perc, append95Percentile)
+
+		overall.readLatencies = append(overall.readLatencies, overallReadLatency)
+		overall.read99Perc = append(overall.read99Perc, read99Percentile)
+		overall.read95Perc = append(overall.read95Perc, read95Percentile)
+
+		fmt.Printf("-----\nAppend:\nLatency: %v\nThroughput (ops/s): %v\n-----\nRead:\nLatency: %v\nThroughput (ops/s): %v\n",
 			overallAppendLatency, appendThroughput, overallReadLatency, readThroughput)
 	}
 
-	throughput := result.throughput / config.Times
-	appendLatency := time.Duration(result.appendLatency.Nanoseconds() / int64(config.Times))
-	readLatency := time.Duration(result.readLatency.Nanoseconds() / int64(config.Times))
+	throughput, err := stats.Mean(overall.throughputs)
 
-	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v\n", throughput,
-		appendLatency.Microseconds(), readLatency.Microseconds())); err != nil {
+	appendLatency, err := stats.Mean(overall.appendLatencies)
+	append99Perc, err := stats.Mean(overall.append99Perc)
+	append95Perc, err := stats.Mean(overall.append95Perc)
+
+	readLatency, err := stats.Mean(overall.readLatencies)
+	read99Perc, err := stats.Mean(overall.read99Perc)
+	read95Perc, err := stats.Mean(overall.read95Perc)
+
+	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v, %v, %v, %v, %v\n", throughput, appendLatency, append99Perc, append95Perc, readLatency, read99Perc, read95Perc)); err != nil {
 		logrus.Fatalln(err)
 	}
 
 }
 
-func executeBenchmark(client *log_client.Client, runtime, appendInterval, readInterval time.Duration) {
-	var curGsn uint64
-	overallAppendLatency := time.Duration(0)
-	overallReadLatency := time.Duration(0)
-	var appends int
-	var reads int
+func executeBenchmark(client *log_client.Client, runtime time.Duration, numAppends, numReads int) {
+
+	appendLatencies := make([]float64, 0)
+	readLatencies := make([]float64, 0)
+
+	var appends, reads int
+
+	appendHeavy := numAppends > numReads
 
 	defer func() {
-
+		fmt.Println(len(appendLatencies), len(readLatencies))
 		resultC <- &benchmarkResult{
-			overallAppendLatency: overallAppendLatency,
-			appends:              appends,
-			overallReadLatency:   overallReadLatency,
-			reads:                reads,
+			appendLatencies: appendLatencies,
+			readLatencies:   readLatencies,
 		}
 	}()
-	appendTicker := time.Tick(appendInterval)
-	readTicker := time.Tick(readInterval)
 
 	if *wait {
 		<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
 	}
 
-	stop := time.After(5 * time.Second)
-	loadLoop(client, stop, appendTicker, readTicker)
+	stop := time.After(10 * time.Second)
+	loadLoop(client, stop)
 
 	stop = time.After(runtime)
-benchLoop:
-	for {
-		select {
-		case <-stop:
-			break benchLoop
-		case <-appendTicker:
-			start := time.Now()
-			gsn := client.Append(record, 0)
-			overallAppendLatency += time.Since(start)
-			appends++
-			curGsn = gsn
-		case <-readTicker:
-			if curGsn == 0 {
-				continue
+
+	if appendHeavy {
+		ratio := numAppends / numReads
+		fmt.Println(ratio)
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+				start := time.Now()
+				gsn := client.Append(record, 0)
+				appendLatencies = append(appendLatencies, time.Since(start).Seconds())
+				appends++
+				if (appends+reads)%ratio == 0 {
+					start := time.Now()
+					_ = client.Read(gsn, 0)
+					readLatencies = append(readLatencies, time.Since(start).Seconds())
+				}
+				reads++
 			}
-			start := time.Now()
-			_ = client.Read(curGsn, 0)
-			overallReadLatency += time.Since(start)
-			reads++
 		}
 	}
-	stop = time.After(5 * time.Second)
-	loadLoop(client, stop, appendTicker, readTicker)
-}
-
-func loadLoop(client *log_client.Client, stop <-chan time.Time, appendTicker, readTicker <-chan time.Time) {
-	curGsn := uint64(0)
+	var gsn uint64
+	ratio := numReads / numAppends
 	for {
 		select {
 		case <-stop:
 			return
-		case <-appendTicker:
-			gsn := client.Append(record, 0)
-			curGsn = gsn
-		case <-readTicker:
-			if curGsn == 0 {
-				continue
+		default:
+			if (appends+reads)%ratio == 0 {
+				start := time.Now()
+				gsn = client.Append(record, 0)
+				appendLatencies = append(appendLatencies, time.Since(start).Seconds())
+				appends++
 			}
-			_ = client.Read(curGsn, 0)
+			start := time.Now()
+			_ = client.Read(gsn, 0)
+			readLatencies = append(readLatencies, time.Since(start).Seconds())
+			reads++
+		}
+	}
+
+}
+
+func loadLoop(client *log_client.Client, stop <-chan time.Time) {
+	for {
+		select {
+		case <-stop:
+			return
+		default:
+			gsn := client.Append(record, 0)
+			_ = client.Read(gsn, 0)
 		}
 	}
 }
