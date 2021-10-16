@@ -17,6 +17,8 @@ type colorService struct {
 
 	appReqCh chan *shardpb.AppendRequest
 
+	appendCh chan *shardpb.AppendRequest
+
 	log storage.Log
 
 	waitingAppends map[uint64]chan bool
@@ -29,12 +31,14 @@ func newColorService(color, originColor uint32, log storage.Log, interval time.D
 	cs.oRspCh = make(chan *sequencerpb.OrderResponse, 2048)
 	cs.oReqCh = make(chan uint64, 2048)
 	cs.appReqCh = make(chan *shardpb.AppendRequest, 2048)
+	cs.appendCh = make(chan *shardpb.AppendRequest, 2048)
 	cs.waitingAppends = make(map[uint64]chan bool)
 	cs.log = log
 
 	go cs.handleAppendRequests()
 	go cs.handleOrderResponses(outAppRspCh)
 	go cs.batchOrderRequests(color, originColor, interval, outOReqCh)
+	go cs.executeAppends()
 	return cs
 }
 
@@ -68,10 +72,16 @@ func (cs *colorService) trim(gsn uint64) (*shardpb.Ok, error) {
 
 func (cs *colorService) handleAppendRequests() {
 	for appReq := range cs.appReqCh {
-		cs.append(appReq)
 		if appReq.Responsible {
 			cs.oReqCh <- appReq.Token
 		}
+		cs.appendCh <- appReq
+	}
+}
+
+func (cs *colorService) executeAppends() {
+	for appReq := range cs.appendCh {
+		cs.append(appReq)
 	}
 }
 
