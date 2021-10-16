@@ -110,9 +110,10 @@ func (cs *colorService) batchOrderRequests(color, originColor uint32,
 				continue
 			}
 			outOReqCh <- &sequencerpb.OrderRequest{
-				OriginColor: originColor,
-				Color:       color,
-				Tokens:      currentTokens,
+				OriginColor:  originColor,
+				Color:        color,
+				Tokens:       currentTokens,
+				NumOfRecords: uint32(len(currentTokens)),
 			}
 			newBatch = true
 		}

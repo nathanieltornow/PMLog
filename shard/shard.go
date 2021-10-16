@@ -71,7 +71,7 @@ func (r *Replica) Start(IP string, orderIP string) error {
 	server := grpc.NewServer()
 	shardpb.RegisterReplicaServer(server, r)
 
-	logrus.Infoln("Starting replice...")
+	logrus.Infoln("Starting replica...")
 	if err := server.Serve(lis); err != nil {
 		return fmt.Errorf("failed to start replica: %v", err)
 	}
