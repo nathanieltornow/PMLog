@@ -110,17 +110,16 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			return err
 		}
 
-		fmt.Println(s.color, oReq.Color)
 		if s.root || oReq.Color == s.color {
 			// in case the sequencer is the root, it will just immediately return with an OrderResponse
 			sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
 			oRsp := &sequencerpb.OrderResponse{
-				Tokens:      oReq.Tokens,
-				Gsn:         sn,
-				Color:       oReq.Color,
-				OriginColor: oReq.OriginColor,
+				Tokens:       oReq.Tokens,
+				Gsn:          sn,
+				Color:        oReq.Color,
+				OriginColor:  oReq.OriginColor,
+				NumOfRecords: oReq.NumOfRecords,
 			}
-			fmt.Println("hi", oReq, oRsp)
 			s.broadcastCh <- oRsp
 			continue
 		}
