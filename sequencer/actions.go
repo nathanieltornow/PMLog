@@ -14,6 +14,25 @@ func (s *Sequencer) handleOrderResponses() {
 	}
 }
 
+func (s *Sequencer) handleOrderRequests() {
+	if s.root {
+		for oReq := range s.oReqInCh {
+			oRsp := &sequencerpb.OrderResponse{
+				Tokens:       oReq.Tokens,
+				Gsn:          (uint64(s.epoch) << 32) + uint64(s.sn),
+				Color:        oReq.Color,
+				OriginColor:  oReq.OriginColor,
+				NumOfRecords: oReq.NumOfRecords,
+			}
+			s.sn += oReq.NumOfRecords
+			s.broadcastCh <- oRsp
+		}
+	}
+	for oReq := range s.oReqInCh {
+		s.getColorService(oReq.Color).insertOrderRequest(oReq)
+	}
+}
+
 func (s *Sequencer) forwardOrderRequests() {
 	for oReq := range s.oReqCh {
 		s.parentClient.MakeOrderRequest(oReq)

@@ -175,7 +175,6 @@ func executeBenchmark(client *log_client.Client, runtime time.Duration, numAppen
 
 	if appendHeavy {
 		ratio := numAppends / numReads
-		fmt.Println(ratio)
 		for {
 			select {
 			case <-stop:
