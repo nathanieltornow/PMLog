@@ -100,6 +100,7 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			s.oRspCsID++
 			s.oRspCsMu.Unlock()
 			first = false
+			continue
 		}
 		if err != nil {
 			s.oRspCsMu.Lock()
@@ -109,6 +110,7 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			return err
 		}
 
+		fmt.Println(s.color, oReq.Color)
 		if s.root || oReq.Color == s.color {
 			// in case the sequencer is the root, it will just immediately return with an OrderResponse
 			sn := s.getAndIncSequenceNum(oReq.NumOfRecords)
@@ -118,9 +120,10 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 				Color:       oReq.Color,
 				OriginColor: oReq.OriginColor,
 			}
+			fmt.Println("hi", oReq, oRsp)
 			s.broadcastCh <- oRsp
+			continue
 		}
-
 		s.getColorService(oReq.Color).insertOrderRequest(oReq)
 
 	}

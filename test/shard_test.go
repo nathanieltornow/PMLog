@@ -15,7 +15,7 @@ import (
 var (
 	clientID = flag.Int("id", 0, "")
 	shardIPs = flag.String("IPs", "", "")
-	record   = strings.Repeat("p", 4000)
+	record   = strings.Repeat("p", 4)
 	cl       *client.Client
 )
 
@@ -35,17 +35,19 @@ func TestMain(m *testing.M) {
 }
 
 func TestAppendRead(t *testing.T) {
-	numOfAppends := 1000
+	numOfAppends := 5
 	gsns := make([]uint64, numOfAppends)
 	for i := 0; i < numOfAppends; i++ {
 		start := time.Now()
-		gsn := cl.Append(record, 0)
+		gsn := cl.Append(record, 1)
 		fmt.Println(time.Since(start))
 		fmt.Println(gsn)
 		gsns[i] = gsn
+		time.Sleep(time.Second)
 	}
 	for _, gsn := range gsns {
-		rec := cl.Read(gsn, 0)
+		rec := cl.Read(gsn, 1)
+		fmt.Println(rec, gsn)
 		require.Equal(t, rec, record)
 	}
 }
