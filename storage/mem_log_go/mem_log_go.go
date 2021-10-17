@@ -25,10 +25,6 @@ func NewMemLogGo() (*MemLogGo, error) {
 }
 
 func (mlg *MemLogGo) Append(record string, lsn uint64) error {
-	var counter int
-	for i := 0; i < 40000; i++ {
-		counter++
-	}
 	mlg.lsnMu.Lock()
 	recCh, ok := mlg.lsnToWaitingRecord[lsn]
 	if !ok {
@@ -43,10 +39,6 @@ func (mlg *MemLogGo) Append(record string, lsn uint64) error {
 // Commit commits the records which is stored on local-sequence-number lsn with the global-sequence-number gsn on
 // on the log of color. The record can be committed for multiple colors.
 func (mlg *MemLogGo) Commit(lsn uint64, gsn uint64) error {
-	var counter int
-	for i := 0; i < 40000; i++ {
-		counter++
-	}
 	mlg.lsnMu.Lock()
 	recCh, ok := mlg.lsnToWaitingRecord[lsn]
 	if !ok {
@@ -55,6 +47,10 @@ func (mlg *MemLogGo) Commit(lsn uint64, gsn uint64) error {
 	}
 	mlg.lsnMu.Unlock()
 	rec := <-recCh
+	var counter int
+	for i := 0; i < 40000; i++ {
+		counter++
+	}
 	mlg.gsnMu.Lock()
 	mlg.gsnToRecord[gsn] = rec
 	mlg.gsnMu.Unlock()
