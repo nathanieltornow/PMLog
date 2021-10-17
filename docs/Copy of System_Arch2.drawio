@@ -1,6 +1,6 @@
-<mxfile host="app.diagrams.net" modified="2021-10-15T16:59:45.183Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.71 Safari/537.36" etag="L8t7pUGIcmd34O8wTSF8" version="15.4.3" type="github">
+<mxfile host="app.diagrams.net" modified="2021-10-17T19:57:43.009Z" agent="5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/94.0.4606.81 Safari/537.36" etag="B2pekkAATeaWMOQHtF7T" version="15.5.4" type="github">
   <diagram id="b9z9_DqSBHmfmtNlmLSl" name="Page-1">
-    <mxGraphModel dx="2228" dy="-862" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+    <mxGraphModel dx="2638" dy="-616" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
@@ -179,8 +179,8 @@
         <mxCell id="pfrUigar8vo9y5HyHc5f-82" value="Ordering Layer" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;rotation=270;" parent="1" vertex="1">
           <mxGeometry x="-1501.91" y="2203.5" width="100" height="20" as="geometry" />
         </mxCell>
-        <mxCell id="pfrUigar8vo9y5HyHc5f-84" value="Replication Layer" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;rotation=270;" parent="1" vertex="1">
-          <mxGeometry x="-1506.91" y="2052.5" width="110" height="20" as="geometry" />
+        <mxCell id="pfrUigar8vo9y5HyHc5f-84" value="Data&amp;nbsp;Layer" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;rotation=270;" parent="1" vertex="1">
+          <mxGeometry x="-1486.91" y="2052.5" width="70" height="20" as="geometry" />
         </mxCell>
         <mxCell id="pfrUigar8vo9y5HyHc5f-85" value="Replica" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
           <mxGeometry x="-1417.97" y="2043.5" width="60" height="20" as="geometry" />
@@ -197,7 +197,7 @@
         <mxCell id="pfrUigar8vo9y5HyHc5f-81" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;fillColor=none;dashed=1;" parent="1" vertex="1">
           <mxGeometry x="-1460" y="2147" width="350" height="133" as="geometry" />
         </mxCell>
-        <mxCell id="EqRgioehb02IYDinIX_w-1" value="Sequencer" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" vertex="1" parent="1">
+        <mxCell id="EqRgioehb02IYDinIX_w-1" value="Sequencer" style="text;html=1;align=center;verticalAlign=middle;resizable=0;points=[];autosize=1;strokeColor=none;fillColor=none;" parent="1" vertex="1">
           <mxGeometry x="-1369.03" y="2238" width="70" height="20" as="geometry" />
         </mxCell>
         <mxCell id="pfrUigar8vo9y5HyHc5f-83" value="" style="rounded=1;whiteSpace=wrap;html=1;strokeWidth=1;fillColor=none;dashed=1;" parent="1" vertex="1">
