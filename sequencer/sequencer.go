@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	batchingInterval = 10 * time.Microsecond
+	batchingInterval = 100 * time.Microsecond
 )
 
 type Sequencer struct {
@@ -113,6 +113,7 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			return err
 		}
 
+		fmt.Println(oReq)
 		s.oReqInCh <- oReq
 	}
 }
