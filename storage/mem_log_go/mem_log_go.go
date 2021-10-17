@@ -7,10 +7,10 @@ import (
 )
 
 type MemLogGo struct {
-	lsnMu       sync.Mutex
-	lsnToRecord map[uint64]string
-	gsnMu       sync.RWMutex
-	gsnToRecord map[uint64]string
+	lsnMu              sync.Mutex
+	lsnToWaitingRecord map[uint64]chan string
+	gsnMu              sync.RWMutex
+	gsnToRecord        map[uint64]string
 }
 
 func Create() (storage.Log, error) {
@@ -19,7 +19,7 @@ func Create() (storage.Log, error) {
 
 func NewMemLogGo() (*MemLogGo, error) {
 	mlg := new(MemLogGo)
-	mlg.lsnToRecord = make(map[uint64]string)
+	mlg.lsnToWaitingRecord = make(map[uint64]chan string)
 	mlg.gsnToRecord = make(map[uint64]string)
 	return mlg, nil
 }
@@ -30,8 +30,13 @@ func (mlg *MemLogGo) Append(record string, lsn uint64) error {
 		counter++
 	}
 	mlg.lsnMu.Lock()
-	mlg.lsnToRecord[lsn] = record
+	recCh, ok := mlg.lsnToWaitingRecord[lsn]
+	if !ok {
+		recCh = make(chan string, 1)
+		mlg.lsnToWaitingRecord[lsn] = recCh
+	}
 	mlg.lsnMu.Unlock()
+	recCh <- record
 	return nil
 }
 
@@ -43,15 +48,21 @@ func (mlg *MemLogGo) Commit(lsn uint64, gsn uint64) error {
 		counter++
 	}
 	mlg.lsnMu.Lock()
-	rec, ok := mlg.lsnToRecord[lsn]
-	delete(mlg.lsnToRecord, lsn)
-	mlg.lsnMu.Unlock()
+	recCh, ok := mlg.lsnToWaitingRecord[lsn]
 	if !ok {
-		return fmt.Errorf("couldn't find record")
+		recCh = make(chan string, 1)
+		mlg.lsnToWaitingRecord[lsn] = recCh
 	}
+	mlg.lsnMu.Unlock()
+	rec := <-recCh
 	mlg.gsnMu.Lock()
 	mlg.gsnToRecord[gsn] = rec
 	mlg.gsnMu.Unlock()
+	defer func() {
+		mlg.lsnMu.Lock()
+		delete(mlg.lsnToWaitingRecord, lsn)
+		mlg.lsnMu.Unlock()
+	}()
 	return nil
 }
 

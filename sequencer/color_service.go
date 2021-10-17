@@ -39,6 +39,7 @@ func (cs *colorService) getOrderResponses(oRsp *sequencerpb.OrderResponse) []*se
 	for _, token := range oRsp.Tokens {
 		cs.cacheMu.Lock()
 		oReq, ok := cs.cache[token]
+		delete(cs.cache, token)
 		cs.cacheMu.Unlock()
 		if !ok {
 			logrus.Fatalln("oReq not found")

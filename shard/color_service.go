@@ -81,14 +81,16 @@ func (cs *colorService) handleAppendRequests() {
 
 func (cs *colorService) executeAppends() {
 	for appReq := range cs.appendCh {
-		cs.append(appReq)
+		err := cs.log.Append(appReq.Record, appReq.Token)
+		if err != nil {
+			logrus.Fatalln(err)
+		}
 	}
 }
 
 func (cs *colorService) handleOrderResponses(outAppRspCh chan *shardpb.AppendResponse) {
 	for oRsp := range cs.oRspCh {
 		for i, token := range oRsp.Tokens {
-			cs.checkForAppend(token)
 			err := cs.log.Commit(token, oRsp.Gsn+uint64(i))
 			if err != nil {
 				logrus.Fatalln(err)
@@ -128,40 +130,4 @@ func (cs *colorService) batchOrderRequests(color, originColor uint32,
 			newBatch = true
 		}
 	}
-}
-
-// ---- helper functions for appending
-
-func (cs *colorService) append(appReq *shardpb.AppendRequest) {
-	err := cs.log.Append(appReq.Record, appReq.Token)
-	if err != nil {
-		logrus.Fatalln(err)
-	}
-	cs.mu.Lock()
-	waitCh, ok := cs.waitingAppends[appReq.Token]
-	if !ok {
-		waitCh = make(chan bool, 1)
-		cs.waitingAppends[appReq.Token] = waitCh
-	}
-	if len(waitCh) == 0 {
-		waitCh <- true
-	}
-	cs.mu.Unlock()
-}
-
-func (cs *colorService) checkForAppend(token uint64) {
-	cs.mu.Lock()
-	waitCh, ok := cs.waitingAppends[token]
-	if !ok {
-		waitCh = make(chan bool, 1)
-		cs.waitingAppends[token] = waitCh
-	}
-	cs.mu.Unlock()
-
-	defer func() {
-		cs.mu.Lock()
-		delete(cs.waitingAppends, token)
-		cs.mu.Unlock()
-	}()
-	<-waitCh
 }
