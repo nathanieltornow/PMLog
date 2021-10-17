@@ -113,7 +113,6 @@ func (s *Sequencer) GetOrder(stream sequencerpb.Sequencer_GetOrderServer) error 
 			return err
 		}
 
-		fmt.Println(oReq)
 		s.oReqInCh <- oReq
 	}
 }
