@@ -6,6 +6,7 @@ import (
 	"github.com/nathanieltornow/PMLog/sequencer/client"
 	"github.com/nathanieltornow/PMLog/sequencer/sequencerpb"
 	"github.com/sirupsen/logrus"
+	"time"
 )
 
 var (
@@ -19,14 +20,11 @@ func main() {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
-	go func() {
-		for i := 0; i < 20; i++ {
-			cl.MakeOrderRequest(&sequencerpb.OrderRequest{Color: uint32(*color), OriginColor: 123, NumOfRecords: 5, Tokens: []uint64{132, 424}})
-		}
-	}()
-
-	for i := 0; i < 20; i++ {
-		oRsp := cl.GetNextOrderResponse()
-		fmt.Println(oRsp)
+	iter := 20000
+	start := time.Now()
+	for i := 0; i < iter; i++ {
+		cl.MakeOrderRequest(&sequencerpb.OrderRequest{Color: uint32(*color), OriginColor: 123, NumOfRecords: 12, Tokens: []uint64{12, 1}})
+		cl.GetNextOrderResponse()
 	}
+	fmt.Println(time.Duration(time.Since(start).Nanoseconds() / int64(iter)))
 }
