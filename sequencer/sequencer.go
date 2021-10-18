@@ -12,7 +12,7 @@ import (
 )
 
 const (
-	batchingInterval = 100 * time.Microsecond
+	batchingInterval = 1 * time.Microsecond
 )
 
 type Sequencer struct {

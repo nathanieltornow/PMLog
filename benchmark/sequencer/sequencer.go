@@ -16,7 +16,7 @@ var (
 	configPath  = flag.String("config", "", "")
 	resultC     chan *benchmarkResult
 	color       = flag.Int("color", 0, "")
-	originColor = flag.Int("origincolor", 10, "")
+	threadsFlag = flag.Int("threads", 0, "")
 )
 
 type benchmarkResult struct {
@@ -35,6 +35,10 @@ func main() {
 	if err != nil {
 		logrus.Fatalln(err)
 	}
+	threads := config.Threads
+	if *threadsFlag != 0 {
+		threads = *threadsFlag
+	}
 
 	f, err := os.OpenFile("results_sequencer.csv",
 		os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
@@ -46,24 +50,25 @@ func main() {
 	throughputResults := make([]float64, 0)
 	latencyResults := make([]float64, 0)
 
+	clients := make([]*seq_client.Client, 0)
+	for i := 0; i < threads; i++ {
+		cl, err := seq_client.NewClient(config.Endpoints[0], uint32(i+1333))
+		if err != nil {
+			logrus.Fatalln(err)
+		}
+		clients = append(clients, cl)
+	}
+
 	for t := 0; t < config.Times; t++ {
 		resultC = make(chan *benchmarkResult, config.Clients)
-		clients := make([]*seq_client.Client, 0)
-		for i := 0; i < config.Clients; i++ {
-			cl, err := seq_client.NewClient(config.Endpoints[0], uint32(*originColor))
-			if err != nil {
-				logrus.Fatalln(err)
-			}
-			clients = append(clients, cl)
-		}
-		for _, cl := range clients {
-			go executeBenchmark(cl, uint32(*color), uint32(*originColor), config.Runtime)
+		for i, cl := range clients {
+			go executeBenchmark(cl, uint32(*color), uint32(i+1333), config.Runtime)
 		}
 
 		overallOperations := 0
 		overallLatency := time.Duration(0)
 
-		for i := 0; i < config.Clients; i++ {
+		for i := 0; i < threads; i++ {
 			res := <-resultC
 			overallOperations += res.operations
 			overallLatency += res.latencySum
@@ -91,36 +96,37 @@ func main() {
 }
 
 func executeBenchmark(client *seq_client.Client, color, originColor uint32, duration time.Duration) {
-	stop := time.After(duration)
-	waitC := make(chan bool, 1)
 
 	latencySum := time.Duration(0)
 	operations := 0
-
 	defer func() {
 		resultC <- &benchmarkResult{operations: operations, latencySum: latencySum}
 	}()
 
-	go func() {
-		for {
-			select {
-			case <-stop:
-				waitC <- true
-				return
-			default:
-				client.MakeOrderRequest(&sequencerpb.OrderRequest{OriginColor: originColor, Color: color, NumOfRecords: 1, Tokens: []uint64{uint64(time.Now().UnixNano())}})
-			}
-		}
-	}()
+	stop := time.After(1 * time.Second)
+load:
 	for {
 		select {
-		case <-waitC:
+		case <-stop:
+			break load
+		default:
+			client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{1}})
+			_ = client.GetNextOrderResponse()
+		}
+
+	}
+	stop = time.After(duration)
+	start := time.Now()
+	for {
+		select {
+		case <-stop:
+			latencySum = time.Since(start)
 			return
 		default:
-			startTime := client.GetNextOrderResponse().Tokens[0]
-			//fmt.Println(startTime)
-			latencySum += time.Duration(time.Now().UnixNano() - int64(startTime))
+			client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{1}})
+			_ = client.GetNextOrderResponse()
 			operations++
 		}
+
 	}
 }
