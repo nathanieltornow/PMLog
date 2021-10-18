@@ -89,7 +89,7 @@ func main() {
 		logrus.Fatalln(err)
 	}
 
-	if _, err := f.WriteString(fmt.Sprintf("%v, %v\n", overallThroughput, overallLatency)); err != nil {
+	if _, err := f.WriteString(fmt.Sprintf("%v, %v, %v\n", threads, overallThroughput, overallLatency)); err != nil {
 		logrus.Fatalln(err)
 	}
 
