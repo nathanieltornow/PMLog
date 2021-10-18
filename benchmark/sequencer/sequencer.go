@@ -21,7 +21,6 @@ var (
 
 type benchmarkResult struct {
 	operations int
-	latencySum time.Duration
 }
 
 func main() {
@@ -71,7 +70,7 @@ func main() {
 		for i := 0; i < threads; i++ {
 			res := <-resultC
 			overallOperations += res.operations
-			overallLatency += res.latencySum
+			overallLatency += config.Runtime
 		}
 
 		throughput := float64(overallOperations) / config.Runtime.Seconds()
@@ -97,10 +96,9 @@ func main() {
 
 func executeBenchmark(client *seq_client.Client, color, originColor uint32, duration time.Duration) {
 
-	latencySum := time.Duration(0)
 	operations := 0
 	defer func() {
-		resultC <- &benchmarkResult{operations: operations, latencySum: latencySum}
+		resultC <- &benchmarkResult{operations: operations}
 	}()
 
 	stop := time.After(1 * time.Second)
@@ -115,18 +113,27 @@ load:
 		}
 
 	}
+	waitC := make(chan bool, 1)
 	stop = time.After(duration)
-	start := time.Now()
+	go func() {
+		for {
+			select {
+			case <-stop:
+				waitC <- true
+				return
+			default:
+				client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{1}})
+			}
+		}
+	}()
+
 	for {
 		select {
-		case <-stop:
-			latencySum = time.Since(start)
+		case <-waitC:
 			return
 		default:
-			client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{1}})
 			_ = client.GetNextOrderResponse()
 			operations++
 		}
-
 	}
 }
