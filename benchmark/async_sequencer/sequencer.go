@@ -17,6 +17,7 @@ var (
 	resultC     chan *benchmarkResult
 	color       = flag.Int("color", 0, "")
 	threadsFlag = flag.Int("threads", 0, "")
+	wait        = flag.Bool("wait", false, "")
 )
 
 type benchmarkResult struct {
@@ -97,10 +98,15 @@ func main() {
 func executeBenchmark(client *seq_client.Client, color, originColor uint32, duration time.Duration) {
 
 	operations := 0
+	op := 0
 	defer func() {
-		fmt.Println(operations)
+		fmt.Println(operations, op)
 		resultC <- &benchmarkResult{operations: operations}
 	}()
+
+	if *wait {
+		<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	}
 
 	stop := time.After(2 * time.Second)
 load:
@@ -114,101 +120,29 @@ load:
 		}
 
 	}
+
+	waitC := make(chan bool, 1)
 	stop = time.After(duration)
+	go func() {
+		for {
+			select {
+			case <-stop:
+				waitC <- true
+				return
+			default:
+				client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{12}})
+				op++
+			}
+		}
+	}()
+
 	for {
 		select {
-		case <-stop:
+		case <-waitC:
 			return
 		default:
-			client.MakeOrderRequest(&sequencerpb.OrderRequest{Color: color, OriginColor: originColor, NumOfRecords: 1, Tokens: []uint64{12}})
 			_ = client.GetNextOrderResponse()
 			operations++
 		}
 	}
-
 }
-
-//type syncClient struct {
-//	stream sequencerpb.Sequencer_GetOrderClient
-//	oRspC  chan *sequencerpb.OrderResponse
-//	oReqC  chan *sequencerpb.OrderRequest
-//
-//	originColor uint32
-//
-//	mu                   sync.RWMutex
-//	ctr                  uint64
-//	waitingOrderRequests map[uint64]chan *sequencerpb.OrderResponse
-//}
-
-//func newSyncClient(IP string, originColor uint32) (*syncClient, error) {
-//	conn, err := grpc.Dial(IP, grpc.WithInsecure())
-//	if err != nil {
-//		return nil, err
-//	}
-//	pbClient := sequencerpb.NewSequencerClient(conn)
-//	stream, err := pbClient.GetOrder(context.Background())
-//	if err != nil {
-//		return nil, err
-//	}
-//	err = stream.Send(&sequencerpb.OrderRequest{OriginColor: originColor})
-//	if err != nil {
-//		return nil, err
-//	}
-//	sc := new(syncClient)
-//	sc.stream = stream
-//	sc.oReqC = make(chan *sequencerpb.OrderRequest, 1024)
-//	sc.oRspC = make(chan *sequencerpb.OrderResponse, 1024)
-//	sc.waitingOrderRequests = make(map[uint64]chan *sequencerpb.OrderResponse, 2048)
-//	go sc.handleORsps()
-//	go sc.sendOReqs()
-//	go sc.receiveORsps()
-//	sc.originColor = originColor
-//	return sc, nil
-//}
-//
-//func (sc *syncClient) getOrder(color uint32) *sequencerpb.OrderResponse {
-//	ch := make(chan *sequencerpb.OrderResponse, 1)
-//	sc.mu.Lock()
-//	token := sc.ctr
-//	sc.waitingOrderRequests[token] = ch
-//	sc.ctr++
-//	sc.mu.Unlock()
-//	sc.oReqC <- &sequencerpb.OrderRequest{Color: color, OriginColor: sc.originColor, Tokens: []uint64{token}, NumOfRecords: 1}
-//	defer func() {
-//		sc.mu.Lock()
-//		delete(sc.waitingOrderRequests, token)
-//		sc.mu.Unlock()
-//	}()
-//	return <-ch
-//}
-//
-//func (sc *syncClient) handleORsps() {
-//	for oRsp := range sc.oRspC {
-//		sc.mu.RLock()
-//		ch, ok := sc.waitingOrderRequests[oRsp.Tokens[0]]
-//		sc.mu.RUnlock()
-//		if !ok {
-//			logrus.Fatalln("not found")
-//		}
-//		ch <- oRsp
-//	}
-//}
-//
-//func (sc *syncClient) sendOReqs() {
-//	for oReq := range sc.oReqC {
-//		err := sc.stream.Send(oReq)
-//		if err != nil {
-//			return
-//		}
-//	}
-//}
-//
-//func (sc *syncClient) receiveORsps() {
-//	for {
-//		rsp, err := sc.stream.Recv()
-//		if err != nil {
-//			return
-//		}
-//		sc.oRspC <- rsp
-//	}
-//}
