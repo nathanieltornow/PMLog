@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	batchingInterval = 10 * time.Microsecond
+	batchingInterval = 1 * time.Microsecond
 )
 
 type Replica struct {
