@@ -11,7 +11,7 @@
 git clone https://github.com/nathanieltornow/PMLog.git && cd PMLog && ./scripts/install_go.sh && source /etc/profile && source ~/.profile
 ```
 
-### Start a the sequencer(s)
+### Setup benchmark
 
 1. Start the sequencer on one node
 ```shell
