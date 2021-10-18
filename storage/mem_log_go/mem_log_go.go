@@ -48,7 +48,7 @@ func (mlg *MemLogGo) Commit(lsn uint64, gsn uint64) error {
 	mlg.lsnMu.Unlock()
 	rec := <-recCh
 	var counter int
-	for i := 0; i < 40000; i++ {
+	for i := 0; i < 15000; i++ {
 		counter++
 	}
 	mlg.gsnMu.Lock()
