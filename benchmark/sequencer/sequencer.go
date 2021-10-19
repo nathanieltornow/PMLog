@@ -17,6 +17,7 @@ var (
 	resultC     chan *benchmarkResult
 	color       = flag.Int("color", 0, "")
 	threadsFlag = flag.Int("threads", 0, "")
+	wait        = flag.Bool("wait", false, "")
 )
 
 type benchmarkResult struct {
@@ -101,6 +102,10 @@ func executeBenchmark(client *seq_client.Client, color, originColor uint32, dura
 		fmt.Println(operations)
 		resultC <- &benchmarkResult{operations: operations}
 	}()
+
+	if *wait {
+		<-time.After(time.Until(time.Now().Truncate(time.Minute).Add(time.Minute)))
+	}
 
 	stop := time.After(2 * time.Second)
 load:
