@@ -26,14 +26,12 @@ struct root {
 };
 
 const char* PersistentString::data() const{ 
-	return this->array; 
+	return this->array.get(); 
 }
 
-PersistentString::PersistentString(const char* s) {	
-	if (pmemobj_tx_add_range_direct(this->array, KEY_SIZE) != 0) {
-		std::cerr << "Storage of string " << s << "failed.\n";
-	}
-	strcpy(this->array, s);
+PersistentString::PersistentString(std::string s) {
+	this->array = make_persistent<char[]>(s.length() + 1);
+    strcpy(this->array.get(), s.c_str());
 }
 
 void setup(std::string &s1, std::string &s2) {
@@ -61,8 +59,8 @@ void *cppStartUp() {
 	
 	setup(s1, s2);
 	
-	s1.pop_back();
-	s2.pop_back();
+	//s1.pop_back();
+	//s2.pop_back();
 
 	try {
 		if (pool<root>::check(s1, s2) == 1)
@@ -233,14 +231,15 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 	}
 }
 
-uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
+const char *cppPMLog::Read(uint64_t gsn, uint64_t* next_gsn) {
 	if (gsn > this->highest_gsn.get_ro() || gsn < this->lowest_gsn.get_ro())
-		return 0;
+		return "";
 	
-	uint64_t next_gsn = logCache.Read(gsn, storage);
+	const char *record = logCache.Read(gsn, next_gsn);
+	std::cout << record << std::endl;
 	
-	if (next_gsn != gsn)
-		return next_gsn;
+	if (*next_gsn != gsn)
+		return record;
 	else {
 		std::thread tmp(&cppPMLog::cacheRecords, this, this, gsn);
 		tmp.detach();
@@ -249,15 +248,15 @@ uint64_t cppPMLog::Read(uint64_t gsn, char* storage) {
 	try {
 		GSNmap::accessor acc;
 		if (this->gsnPptr->find(acc, gsn))
-			strcpy(storage, acc->second->data());
+			record = acc->second->data();
 		
-		next_gsn = gsn + 1;
-		while (!(this->gsnPptr->find(acc, next_gsn))) {
-			if (next_gsn > this->highest_gsn)
-				return gsn;
-			next_gsn++;
+		*next_gsn = gsn + 1;
+		while (!(this->gsnPptr->find(acc, *next_gsn))) {
+			if (*next_gsn > this->highest_gsn)
+				return record;
+			(*next_gsn)++;
 		}
-		return next_gsn;
+		return record;
 	}
 	catch (const std::runtime_error &e){
 		std::cerr << e.what();

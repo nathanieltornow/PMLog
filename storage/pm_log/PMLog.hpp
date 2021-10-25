@@ -10,10 +10,10 @@ struct root;
 
 class PersistentString {
 private:
-	char array[KEY_SIZE];
+	 persistent_ptr<char[]> array;
 public:
 	const char* data() const;	
-	PersistentString(const char* s);
+	PersistentString(std::string s);
 };
 
 using PString = struct PersistentString;
@@ -33,9 +33,9 @@ public:
     ~cppPMLog();
     void restartMaps();
     void shutdown();
-    int Append(const char* record, uint64_t lsn);
+    int Append(const char *record, uint64_t lsn);
     int Commit(uint64_t lsn, uint64_t gsn) ;
-    uint64_t Read(uint64_t gsn, char* storage);
+    const char *Read(uint64_t gsn, uint64_t *next_gsn);
     int Trim(uint64_t gsn);
 };
 

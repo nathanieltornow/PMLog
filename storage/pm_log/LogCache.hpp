@@ -14,6 +14,6 @@ public:
     LogCache();
     ~LogCache();
     int Append(std::string record, uint64_t gsn);
-    uint64_t Read(uint64_t gsn, char *storage);
+    const char *Read(uint64_t gsn, uint64_t *next_gsn);
 	int Erase(uint64_t gsn);
 };

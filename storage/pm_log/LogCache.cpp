@@ -52,18 +52,18 @@ int LogCache::Append(std::string record, uint64_t gsn) {
 	}	
 }
 
-uint64_t LogCache::Read(uint64_t gsn, char *storage) {
+const char *LogCache::Read(uint64_t gsn, uint64_t *next_gsn) {
 	GSNmapCache::accessor acc;
 
     try {
 		uint64_t ret = this->next_gsn(gsn);
 		
         if (!(this->logCachePtr->find(acc, gsn)))
-            return ret;
-        
-        strcpy(storage, acc->second.c_str());
-
-        return ret;
+            return "";
+      
+		*next_gsn = ret;
+		
+        return acc->second.c_str();
     }
     catch (const std::runtime_error &e){
 		std::cerr << e.what();

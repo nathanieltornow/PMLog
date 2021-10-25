@@ -1,3 +1,9 @@
+main: main.o libstorage.so
+	g++ main.o -o main -L. -lstorage -lpmemobj -ltbb
+
+main.o: main.cpp
+	g++ -c main.cpp -L. -lstorage
+
 libstorage.so: PMLog.o cPMLog.o LogCache.o
 	g++ PMLog.o cPMLog.o LogCache.o -fPIC -shared -o libstorage.so
 

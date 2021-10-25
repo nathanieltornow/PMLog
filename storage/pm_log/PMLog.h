@@ -10,7 +10,7 @@ extern "C" {
     void PMLogFree(PMLog log);
     int cAppend(PMLog log, const char* record, uint64_t lsn);
     int cCommit(PMLog log,uint64_t lsn, uint64_t gsn) ;
-    uint64_t cRead(PMLog log, uint64_t gsn, char* storage);
+    const char *cRead(PMLog log, uint64_t gsn, void *next_gsn);
     int cTrim(PMLog log, uint64_t gsn);
 #ifdef __cplusplus
 }

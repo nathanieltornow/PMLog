@@ -30,12 +30,9 @@ func (log *PMLog) Commit(lsn uint64, gsn uint64) error {
 }
 
 func (log *PMLog) Read(gsn uint64) (string, error) {
-	var ret string
-	var cRecord = C.CString(ret)
-	C.cRead(log.pmLog, C.ulong(gsn), cRecord)
-	ret = C.GoString(cRecord)
-
-	return ret, nil
+	var nextGsn *uint64	
+	var ret = C.GoString(C.cRead(log.pmLog, C.ulong(gsn), unsafe.Pointer(nextGsn)))	
+	return ret, nil	
 }
 
 func (log *PMLog) Trim(gsn uint64) error {

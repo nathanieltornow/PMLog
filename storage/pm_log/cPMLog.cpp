@@ -29,10 +29,11 @@ int cCommit(PMLog log, uint64_t lsn, uint64_t gsn){
     return cppLog->Commit(lsn, gsn);
 }
 
-uint64_t cRead(PMLog log, uint64_t gsn, char* storage) {
+const char *cRead(PMLog log, uint64_t gsn, void* next_gsn) {
     persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
-
-    return cppLog->Read(gsn, storage);
+	uint64_t *nxtgsn = (uint64_t *) next_gsn;
+	
+    return cppLog->Read(gsn, nxtgsn);
 }
 
 int cTrim(PMLog log, uint64_t gsn) {
