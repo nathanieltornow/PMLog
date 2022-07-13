@@ -3,19 +3,23 @@
 **Requirements**
 - [Go](https://golang.org/) (version >= 1.15). If you're using Linux, you can use `./scripts/install_go.sh && source /etc/profile`.
 - [Make](https://www.gnu.org/software/make/)
+- [pmdk](https://github.com/pmem/pmdk) (version >= 1.19)
+- [libpmemobj-cpp](https://github.com/pmem/libpmemobj-cpp)
 
 
 ### Installation on each node
 
-```shell
+Clone the repository on each node:
+```
 git clone git@github.com:nathanieltornow/PMLog.git
 cd PMLog
 ```
 
-In Linux:
+In Linux you might also want to manually install `Go`.
 ```
 ./scripts/install_go.sh
-source /etc/profile && source ~/.profile
+source /etc/profile
+source ~/.profile
 ```
 
 In NixOS we provie you with the `default.nix` file.
