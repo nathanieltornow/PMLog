@@ -8,7 +8,7 @@
 ### Installation on each node
 
 ```shell
-git clone https://github.com/nathanieltornow/PMLog.git && cd PMLog && ./scripts/install_go.sh && source /etc/profile && source ~/.profile
+git clone git@github.com:nathanieltornow/PMLog.git && cd PMLog && ./scripts/install_go.sh && source /etc/profile && source ~/.profile
 ```
 
 ### Setup benchmark
