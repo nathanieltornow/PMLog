@@ -18,6 +18,8 @@
 static size_t CACHE_SEGMENT_SIZE = 0;
 extern size_t MAX_CACHE_SIZE;
 
+static size_t POOL_NBs = 1;
+
 using namespace pmem::obj;
 
 static LogCache logCache;
@@ -51,6 +53,9 @@ void setup(std::string &s1, std::string &s2) {
 
 		getline(logFile, tmp);
 		MAX_CACHE_SIZE = std::stoi(tmp);
+		
+		getline(logFile, tmp);
+		POOL_NBs = std::stoi(tmp);
 
 		logFile.close();
 	}
@@ -66,8 +71,8 @@ void *cppStartUp() {
 	//s2.pop_back();
 
 	try {
-		pop = pool<root>::create(s1, s2, PMEMOBJ_MIN_POOL);
-		fmt::print("[{}] s1={} s2={} PMEMOBJ_MIN_POOL={}\n", __func__, s1, s2, PMEMOBJ_MIN_POOL);
+		pop = pool<root>::create(s1, s2, PMEMOBJ_MIN_POOL*POOL_NBs);
+		fmt::print("[{}] s1={} s2={} PMEMOBJ_MIN_POOL={} CACHE_SEGMENT_SIZE={} MAX_CACHE_SIZE={} POOL_NBs={}\n", __func__, s1, s2, PMEMOBJ_MIN_POOL, CACHE_SEGMENT_SIZE, MAX_CACHE_SIZE, POOL_NBs);
 		if (pool<root>::check(s1, s2) == 1)
 			pop = pool<root>::open(s1, s2);
 		else {
@@ -244,7 +249,9 @@ const char *cppPMLog::Read(uint64_t gsn, uint64_t* next_gsn) {
 		return "";
 
 	const char *record = logCache.Read(gsn, next_gsn);
-	std::cout << record << std::endl;
+#ifdef PRINT_DEBUG
+	fmt::print("[{}] record={}\n", record);
+#endif
 
 	if (*next_gsn != gsn)
 		return record;
