@@ -27,14 +27,14 @@ struct root {
 };
 
 const char* PersistentString::data() const{ 
-	return this->array.get(); 
+	return array.get(); 
 }
 
 PersistentString::PersistentString(const std::string& s) {
-	this->array = make_persistent<char[]>(s.length() + 1);
+	array = make_persistent<char[]>(s.length() + 1);
 	::memcpy(array.get(), s.c_str(), s.length());
 	array.get()[s.length()] = '\0'; // null trailing char
-//	strcpy(this->array.get(), s.c_str());
+					//	strcpy(this->array.get(), s.c_str());
 }
 
 void setup(std::string &s1, std::string &s2) {
@@ -66,19 +66,21 @@ void *cppStartUp() {
 	//s2.pop_back();
 
 	try {
-		 pop = pool<root>::create(s1, s2, PMEMOBJ_MIN_POOL);
+		pop = pool<root>::create(s1, s2, PMEMOBJ_MIN_POOL);
 		fmt::print("[{}] s1={} s2={} PMEMOBJ_MIN_POOL={}\n", __func__, s1, s2, PMEMOBJ_MIN_POOL);
 		if (pool<root>::check(s1, s2) == 1)
 			pop = pool<root>::open(s1, s2);
 		else {
-		//	std::cerr << "Memory pool " << s1 << " with layout " << s2<< " is corrupted or does not exist. Exiting...\n" << std::flush;
-		//	exit(-1);
+			//	std::cerr << "Memory pool " << s1 << " with layout " << s2<< " is corrupted or does not exist. Exiting...\n" << std::flush;
+			//	exit(-1);
 		}
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
+		fmt::print("[{}] {}\n", __func__, e.what());
 		exit(-1);
+
 	}
+
 	auto r = pop.root(); 
 
 	if (r->pmLog == nullptr) {		
@@ -88,20 +90,21 @@ void *cppStartUp() {
 					});
 		}
 		catch (const std::runtime_error &e){
-			std::cerr << e.what();
+			fmt::print("[{}] {}\n", __func__, e.what());
 			exit(-1);
 		}
 	}
 	else {
 		r->pmLog->restartMaps();
 	}
+	return r->pmLog.get();
 
-	return (void *) (r->pmLog.get());
+	// return (void *) (r->pmLog.get());
 }
 
 void cppPMLog::shutdown() {
-	this->lsnPptr->defragment();
-	this->gsnPptr->defragment();
+	lsnPptr->defragment();
+	gsnPptr->defragment();
 }
 
 void cppFinalize(persistent_ptr<cppPMLog> cppLog) {
@@ -127,7 +130,7 @@ cppPMLog::cppPMLog(pool<root> pop) {
 				});
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
+			fmt::print("[{}] {}\n", __func__, e.what());
 		pop.close();
 		exit(-1);
 	}
@@ -135,29 +138,29 @@ cppPMLog::cppPMLog(pool<root> pop) {
 
 cppPMLog::~cppPMLog() {
 	try {
-		this->lsnPptr->clear();
-		this->gsnPptr->clear();
+		lsnPptr->clear();
+		gsnPptr->clear();
 		pmem::obj::transaction::run(this->pop.get_rw(), [&] {
 				delete_persistent<LSNmap>(this->lsnPptr);
 				delete_persistent<GSNmap>(this->gsnPptr);
 				});		
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
+			fmt::print("[{}] {}\n", __func__, e.what());
 		exit(-1);
 	}
 }
 
 void cppPMLog::restartMaps() {
 	try {
-		this->lsnPptr->defragment();
-		this->gsnPptr->defragment();
-		this->lsnPptr->runtime_initialize();
-		this->gsnPptr->runtime_initialize();
+		lsnPptr->defragment();
+		gsnPptr->defragment();
+		lsnPptr->runtime_initialize();
+		gsnPptr->runtime_initialize();
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
-		this->pop.get_rw().close();
+			fmt::print("[{}] {}\n", __func__, e.what());
+		pop.get_rw().close();
 		exit(-1);
 	}
 }
@@ -176,7 +179,7 @@ void cppPMLog::cacheRecords(cppPMLog *log, uint64_t gsn) {
 		}	
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
+			fmt::print("[{}] {}\n", __func__, e.what());
 		log->pop.get_rw().close();
 		exit(-1);
 	}	
@@ -194,7 +197,7 @@ int cppPMLog::Append(const char* record, uint64_t lsn) {
 		res = this->lsnPptr->insert(LSNmap::value_type(lsn, s));
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
+			fmt::print("[{}] {}\n", __func__, e.what());
 		this->pop.get_rw().close();
 		exit(-1);
 	}	
@@ -208,20 +211,20 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 	LSNmap::accessor acc;
 	bool res;
 	try {
-		res = this->lsnPptr->find(acc, lsn);
+		res = lsnPptr->find(acc, lsn);
 
 		if (res) {
-			uint64_t tmp_highest_gsn = this->highest_gsn.get_ro();
+			uint64_t tmp_highest_gsn = highest_gsn.get_ro();
 
 			persistent_ptr<PString> record = acc->second;
-			if (!(this->gsnPptr->insert(GSNmap::value_type(gsn, record))))
+			if (!(gsnPptr->insert(GSNmap::value_type(gsn, record))))
 				return -2;
 
-			if ( __atomic_compare_exchange_n(&(this->highest_gsn.get_rw()), &tmp_highest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
-				this->pop.get_rw().persist(this->highest_gsn);
+			if ( __atomic_compare_exchange_n(&(highest_gsn.get_rw()), &tmp_highest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+				pop.get_rw().persist(highest_gsn);
 
 			acc.release();
-			this->lsnPptr->erase(lsn);
+			lsnPptr->erase(lsn);
 			logCache.Append(record->data(), gsn); 
 
 			return 0;
@@ -230,14 +233,14 @@ int cppPMLog::Commit(uint64_t lsn, uint64_t gsn) {
 			return -1;
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
-		this->pop.get_rw().close();
+			fmt::print("[{}] {}\n", __func__, e.what());
+		pop.get_rw().close();
 		exit(-1);
 	}
 }
 
 const char *cppPMLog::Read(uint64_t gsn, uint64_t* next_gsn) {
-	if (gsn > this->highest_gsn.get_ro() || gsn < this->lowest_gsn.get_ro())
+	if (gsn > highest_gsn.get_ro() || gsn < lowest_gsn.get_ro())
 		return "";
 
 	const char *record = logCache.Read(gsn, next_gsn);
@@ -246,26 +249,27 @@ const char *cppPMLog::Read(uint64_t gsn, uint64_t* next_gsn) {
 	if (*next_gsn != gsn)
 		return record;
 	else {
+		
 		std::thread tmp(&cppPMLog::cacheRecords, this, this, gsn);
 		tmp.detach();
 	}
 
 	try {
 		GSNmap::accessor acc;
-		if (this->gsnPptr->find(acc, gsn))
+		if (gsnPptr->find(acc, gsn))
 			record = acc->second->data();
 
 		*next_gsn = gsn + 1;
-		while (!(this->gsnPptr->find(acc, *next_gsn))) {
-			if (*next_gsn > this->highest_gsn)
+		while (!(gsnPptr->find(acc, *next_gsn))) {
+			if (*next_gsn > highest_gsn)
 				return record;
 			(*next_gsn)++;
 		}
 		return record;
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
-		this->pop.get_rw().close();
+		fmt::print("[{}] {}\n", __func__, e.what());
+		pop.get_rw().close();
 		exit(-1);
 	}
 }
@@ -274,29 +278,29 @@ int cppPMLog::Trim(uint64_t gsn) {
 	GSNmap::iterator it;
 
 	try {
-		for (it = this->gsnPptr->begin(); it != this->gsnPptr->end(); it++) {
+		for (it = gsnPptr->begin(); it != gsnPptr->end(); it++) {
 			if (it->first < gsn) {
-				this->gsnPptr->erase(it->first);
+				gsnPptr->erase(it->first);
 				logCache.Erase(it->first);
 			}
 		}
 
-		uint64_t tmp_highest_gsn = this->highest_gsn.get_ro();
-		uint64_t tmp_lowest_gsn = this->lowest_gsn.get_ro();
+		uint64_t tmp_highest_gsn = highest_gsn.get_ro();
+		uint64_t tmp_lowest_gsn = lowest_gsn.get_ro();
 
 		if (gsn == tmp_highest_gsn) {
-			if( __atomic_compare_exchange_n(&(this->highest_gsn.get_rw()), &tmp_highest_gsn, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
-				this->pop.get_rw().persist(this->highest_gsn);
+			if( __atomic_compare_exchange_n(&(highest_gsn.get_rw()), &tmp_highest_gsn, 0, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+				pop.get_rw().persist(highest_gsn);
 		}
 
-		if( __atomic_compare_exchange_n(&(this->lowest_gsn.get_rw()), &tmp_lowest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
-			this->pop.get_rw().persist(this->lowest_gsn);		
+		if( __atomic_compare_exchange_n(&(lowest_gsn.get_rw()), &tmp_lowest_gsn, gsn, false, __ATOMIC_SEQ_CST, __ATOMIC_SEQ_CST))
+			pop.get_rw().persist(lowest_gsn);		
 
 		return 0;
 	}
 	catch (const std::runtime_error &e){
-		std::cerr << e.what();
-		this->pop.get_rw().close();
+		fmt::print("[{}] {}\n", __func__, e.what());
+		pop.get_rw().close();
 		exit(-1);
 	}	
 }
