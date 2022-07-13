@@ -1,14 +1,20 @@
-#pragma once
-
+#include <cstdint>
 #include <string>
+
+namespace order_layer_proxy {
 
 using color_t = int8_t;
 using seqnum_t = int64_t;
 
-// implements an RPC-client to the order layer
+class IOrderClient {
+   public:
+    virtual void receive_order_response(seqnum_t token, seqnum_t gsn);
+};
+
 class OrderLayerProxy {
    public:
-    OrderLayerProxy(std::string order_ip);
-
-    seqnum_t get_order(color_t color, seqnum_t lsn);
+    OrderLayerProxy(std::string ip_addr, IOrderClient order_client);
+    void send_order_request(color_t color, seqnum_t token);
 };
+
+}  // namespace order_layer_proxy
