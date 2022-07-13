@@ -35,7 +35,7 @@ go run cmd/replica/start_replica.go -order <sequencer-IP>:7000 -IP :4000
 ```
 
 3. Start a benchmark at the load generator
-   a1. Modify benchmark/benchmark.config.yaml, that the endpoints are all pointing to the replicas
+   1. Modify benchmark/benchmark.config.yaml, that the endpoints are all pointing to the replicas
    2. Modify "clients" benchmark/benchmark.config.yaml, for the number of clients
    3. Modify "appends" and "reads" for the right ratio. (Just the ratio appends/reads is important)
    4. Start the benchmark, scale the throughput with increasing x
