@@ -61,6 +61,52 @@ void setup(std::string &s1, std::string &s2) {
 	}
 }
 
+void *cppStartUp(int idx) {
+	pool<root> pop;
+	std::string s1, s2;
+
+	setup(s1, s2);
+
+	//s1.pop_back();
+	//s2.pop_back();
+
+	try {
+		s1 += std::to_string(idx);
+		pop = pool<root>::create(s1, s2, PMEMOBJ_MIN_POOL*POOL_NBs);
+		fmt::print("[{}] s1={} s2={} PMEMOBJ_MIN_POOL={} CACHE_SEGMENT_SIZE={} MAX_CACHE_SIZE={} POOL_NBs={}\n", __func__, s1, s2, PMEMOBJ_MIN_POOL, CACHE_SEGMENT_SIZE, MAX_CACHE_SIZE, POOL_NBs);
+		if (pool<root>::check(s1, s2) == 1)
+			pop = pool<root>::open(s1, s2);
+		else {
+			//	std::cerr << "Memory pool " << s1 << " with layout " << s2<< " is corrupted or does not exist. Exiting...\n" << std::flush;
+			//	exit(-1);
+		}
+	}
+	catch (const std::runtime_error &e){
+		fmt::print("[{}] {}\n", __func__, e.what());
+		exit(-1);
+
+	}
+
+	auto r = pop.root(); 
+
+	if (r->pmLog == nullptr) {		
+		try {
+			pmem::obj::transaction::run(pop, [&] {
+					r->pmLog = make_persistent<cppPMLog>(pop);
+					});
+		}
+		catch (const std::runtime_error &e){
+			fmt::print("[{}] {}\n", __func__, e.what());
+			exit(-1);
+		}
+	}
+	else {
+		r->pmLog->restartMaps();
+	}
+	return r->pmLog.get();
+
+}
+
 void *cppStartUp() {
 	pool<root> pop;
 	std::string s1, s2;

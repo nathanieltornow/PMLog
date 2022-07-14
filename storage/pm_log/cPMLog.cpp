@@ -11,6 +11,10 @@ PMLog startUp() {
 	return static_cast<PMLog>(cppStartUp());
 }
 
+PMLog startUp_idx(int idx) {
+	return static_cast<PMLog>(cppStartUp(idx));
+}
+
 void finalize(PMLog log) {
 	persistent_ptr<cppPMLog> cppLog = persistent_ptr<cppPMLog>((pmem::detail::sp_element<cppPMLog>::type *) log);
 

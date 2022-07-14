@@ -6,6 +6,7 @@ extern "C" {
 #endif
     typedef void* PMLog;
 	PMLog startUp();
+	PMLog startUp_idx(int);
 	void finalize(PMLog log);
     void PMLogFree(PMLog log);
     int cAppend(PMLog log, const char* record, uint64_t lsn);

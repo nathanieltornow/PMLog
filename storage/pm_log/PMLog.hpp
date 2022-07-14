@@ -3,8 +3,6 @@
 #include <cstdint>
 #include <string>
 
-// #define KEY_SIZE 16
-constexpr int KEY_SIZE = 16;
 using namespace pmem::obj;
 
 struct root;
@@ -42,4 +40,5 @@ class cppPMLog {
 
 void setup(std::string &s1, std::string &s2);
 void* cppStartUp();
+void* cppStartUp(int);
 void cppFinalize(persistent_ptr<cppPMLog> cppLog);
