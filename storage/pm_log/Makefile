@@ -30,4 +30,4 @@ LogCache.o: LogCache.cpp LogCache.hpp
 	$(CXX) $(CXX_FLAGS) $(INCLUDE_PATH) LogCache.cpp -c -fPIC -o LogCache.o
 	
 clean: 
-	-rm -f libstorage.so PMLog.o cPMLog.o LogCache.o main.o main
+	-rm -f libstorage.so PMLog.o cPMLog.o LogCache.o main.o main pmem_bench
