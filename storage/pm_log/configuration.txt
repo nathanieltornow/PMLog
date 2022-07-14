@@ -1,4 +1,4 @@
-PMLog3
+/mnt/pmem0/dimitra/PMLog3
 PMLogLayout
 1024
 50000000
