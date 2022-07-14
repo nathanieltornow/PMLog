@@ -61,13 +61,24 @@ std::unique_ptr<char[]> random_str(size_t sz) {
 static void thread_func(int&& thread_id) {
 	auto record = random_str(FLAGS_record_size);
 	PMLog log = startUp_idx(thread_id);
+	KeyGenerator gen(FLAGS_nb_ops/2);
 
 	std::unique_ptr<uint64_t> next_gsn = std::make_unique<uint64_t>();
 
-	for (int i = 0; i < FLAGS_nb_ops; i++) {
+	// loading phase
+	for (int i = 0; i < FLAGS_nb_ops/2; i++) {
+
 		cAppend(log, record.get(), i);
 		cCommit(log, i, i);
-		cRead(log, i, next_gsn.get());
+	}
+
+	for (int i = 0; i < FLAGS_nb_ops; i++) {
+		if (rand()%1000 > FLAGS_reads) {
+			cAppend(log, record.get(), i);
+			cCommit(log, i, i);
+		}
+		else
+			cRead(log, i, next_gsn.get());
 		// std::cout << cRead(log, i, next_gsn) << std::endl;
 		if (i%5125 == 0)
 			fmt::print("[{}] {}\n", __func__, i);
