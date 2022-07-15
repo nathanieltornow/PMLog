@@ -13,7 +13,7 @@ OBJECTS		= $(SOURCES:.cpp=.o)
 NAMES		= $(SOURCES:.cpp=)
 
 .PHONY = all clean 
-all: clean rocksdb rocksdb_bench
+all: clean rocksdb_bench
 
 rocksdb_bench: rocksdb
 	$(CXX) $(CXX_FLAGS) $(INCLUDE_PATH) $@.cpp -o $@ ${LD_FLAGS} ${LIBS}
@@ -22,5 +22,5 @@ rocksdb:
 	make -C $(ROCKSDB_PATH) static_lib -j8
 
 clean: 
-	make clean -C $(ROCKSDB_PATH)
+	# make clean -C $(ROCKSDB_PATH)
 	-rm -f rocksdb_bench

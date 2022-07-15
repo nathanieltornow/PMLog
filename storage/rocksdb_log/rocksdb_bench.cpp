@@ -18,6 +18,7 @@ using namespace ROCKSDB_NAMESPACE;
 
 DEFINE_int64(reads, 500, "Percentage of read operations to do.");
 DEFINE_int32(threads, 1, "Number of concurrent threads to run.");
+DEFINE_bool(sync, false, "sync buffer cache w/ the persistent storage on writes.");
 
 DEFINE_int32(record_size, 100, "Size of each record to be appended.");
 DEFINE_int32(key_size, 16, "Size of each key.");
@@ -32,6 +33,7 @@ struct Times {
 std::vector<Times> times;
 
 DB* db;
+WriteOptions woptions;
 std::string kDBPath = "/tmp/rocksdb_bench";
 
 uint64_t NowMicros() {
@@ -80,7 +82,7 @@ static void thread_func(int&& thread_id) {
 	if (FLAGS_distribution_type == "kSequential") {
 		for (int i = 0; i < FLAGS_nb_ops; i++) {
 			if (rand()%1000 > FLAGS_reads) {
-				db->Put(WriteOptions(), std::to_string(thread_id + i), record.get());
+				db->Put(woptions, std::to_string(thread_id + i), record.get());
 
 			}
 			else {
@@ -97,7 +99,7 @@ static void thread_func(int&& thread_id) {
 		for (int i = 0; i < FLAGS_nb_ops; i++) {
 			auto idx = gen.Next();
 			if (rand()%1000 > FLAGS_reads) {
-				db->Put(WriteOptions(), std::to_string(thread_id + idx), record.get());
+				db->Put(woptions, std::to_string(thread_id + idx), record.get());
 			}
 			else {
 				std::string value;
@@ -128,6 +130,7 @@ int main(int args, char* argv[]) {
 	ParseCommandLineFlags(&args, &argv, true);
 	fmt::print("[{}] reads={}\tthreads={}\trecord_size={}\tkey_size={}\tnb_ops={}\n", __func__, FLAGS_reads, FLAGS_threads, FLAGS_record_size, FLAGS_key_size, FLAGS_nb_ops);
 
+	woptions.sync = FLAGS_sync;
 	Options options;
 	// Optimize RocksDB. This is the easiest way to get RocksDB to perform well
 	options.IncreaseParallelism();
