@@ -159,13 +159,18 @@ void cppPMLog::shutdown() {
 }
 
 void cppFinalize(persistent_ptr<cppPMLog> cppLog) {
+	fmt::print("[{}] 1/4\n", __func__);
 	pool<root> pop = cppLog->pop.get_rw();
+	fmt::print("[{}] 2/4\n", __func__);
 	cppLog->shutdown();
 
+	fmt::print("[{}] 3/4\n", __func__);
 	pmem::obj::transaction::run(pop, [&] {
 			delete_persistent<cppPMLog>(cppLog);
 			pop.root()->pmLog = nullptr;
-			});	
+			});
+	
+	fmt::print("[{}] 4/4\n", __func__);
 
 	pop.close();
 }
