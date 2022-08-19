@@ -32,6 +32,12 @@ In NixOS we provie you with the `default.nix` file.
 go run cmd/start_sequencer/start_sequencer.go -root -IP 0.0.0.0:7000
 ```
 
+To create a tree-hierachy of sequencers, use the following commands:
+```go run cmd/start_sequencer/start_sequencer.go -root -IP <root_ip>:7000```
+```go run cmd/start_sequencer/start_sequencer.go -parIP <root_ip>:7000```
+```go run cmd/start_sequencer/start_sequencer.go -parIP <middle_seq_ip>:7000```
+
+
 2. Startup the shard
 ```shell
 # for every replica
