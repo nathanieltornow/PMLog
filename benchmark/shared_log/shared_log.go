@@ -3,21 +3,23 @@ package main
 import (
 	"flag"
 	"fmt"
+	"os"
+	"strings"
+	"time"
+
 	"github.com/montanaflynn/stats"
 	"github.com/nathanieltornow/PMLog/benchmark"
 	log_client "github.com/nathanieltornow/PMLog/client"
 	"github.com/sirupsen/logrus"
-	"os"
-	"strings"
-	"time"
 )
 
 var (
-	configPath  = flag.String("config", "", "")
-	resultC     chan *benchmarkResult
-	record      = strings.Repeat("r", 4000)
-	threadsFlag = flag.Int("threads", 0, "")
-	wait        = flag.Bool("wait", false, "")
+	clientIDStart = flag.Int("client-id-start", 0, "client id start")
+	configPath    = flag.String("config", "", "")
+	resultC       chan *benchmarkResult
+	record        = strings.Repeat("r", 4000)
+	threadsFlag   = flag.Int("threads", 0, "")
+	wait          = flag.Bool("wait", false, "")
 )
 
 type benchmarkResult struct {
@@ -61,7 +63,7 @@ func main() {
 	defer f.Close()
 
 	clients := make([]*log_client.Client, 0)
-	for i := 0; i < config.Clients; i++ {
+	for i := *clientIDStart; i < *clientIDStart+config.Clients; i++ {
 		client, err := log_client.NewClient(uint32(i), config.Endpoints)
 		if err != nil {
 			logrus.Fatalln(err)
